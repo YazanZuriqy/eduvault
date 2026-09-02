@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { addDoc, collection, doc, onSnapshot, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
 import { useAuthUser } from "@/utils/useAuthUser";
 import VideoPlayer from "@/components/VideoPlayer";
@@ -57,6 +57,11 @@ const SessionViewerContent = () => {
 
     return unsubscribe;
   }, [sessionId, userDoc, router]);
+
+  useEffect(() => {
+    if (!session || session.watchedAt) return;
+    void updateDoc(doc(getFirebaseDb(), "sessions", session.id), { watchedAt: Date.now() });
+  }, [session]);
 
   useEffect(() => {
     if (!sessionId || userDoc?.role !== "student") return;

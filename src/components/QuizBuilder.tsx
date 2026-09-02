@@ -372,6 +372,7 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
           ...(unit.trim() ? { unit: unit.trim() } : {}),
           ...(lesson.trim() ? { lesson: lesson.trim() } : {}),
         },
+        createdAt: Date.now(),
         questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia }) => ({
           question,
           options,

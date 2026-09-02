@@ -35,6 +35,10 @@ const TeacherDashboardPage = () => {
   const [isLinking, setIsLinking] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [sessionTrack, setSessionTrack] = useState<"foundation" | "term">("term");
+  const [sessionTerm, setSessionTerm] = useState("الفصل الأول");
+  const [sessionUnit, setSessionUnit] = useState("");
+  const [sessionLesson, setSessionLesson] = useState("");
   const [workspace, setWorkspace] = useState<Workspace>("overview");
   const [quizStudentId, setQuizStudentId] = useState<string | undefined>();
 
@@ -83,6 +87,12 @@ const TeacherDashboardPage = () => {
         videoTitle,
         driveFileId,
         quizPassed: false,
+        curriculum: {
+          track: sessionTrack,
+          ...(sessionTrack === "term" ? { term: sessionTerm } : {}),
+          ...(sessionUnit.trim() ? { unit: sessionUnit.trim() } : {}),
+          ...(sessionLesson.trim() ? { lesson: sessionLesson.trim() } : {}),
+        },
         createdAt: Date.now(),
       };
 
@@ -97,6 +107,8 @@ const TeacherDashboardPage = () => {
 
       setVideoTitle("");
       setDriveFileId("");
+      setSessionUnit("");
+      setSessionLesson("");
       setFeedback(editingSessionId ? "تم تحديث الجلسة بنجاح." : "تم ربط الجلسة بنجاح.");
     } catch {
       setFeedback("تعذر ربط الجلسة. حاول مرة أخرى.");
@@ -227,6 +239,12 @@ const TeacherDashboardPage = () => {
                 dir="ltr"
               />
             </label>
+            <div className="curriculum-grid">
+              <label className="field"><span>المسار</span><select value={sessionTrack} onChange={(event) => setSessionTrack(event.target.value as "foundation" | "term")}><option value="foundation">التأسيس</option><option value="term">الفصل الدراسي</option></select></label>
+              {sessionTrack === "term" && <label className="field"><span>الفصل</span><input value={sessionTerm} onChange={(event) => setSessionTerm(event.target.value)} /></label>}
+              <label className="field"><span>الوحدة</span><input value={sessionUnit} onChange={(event) => setSessionUnit(event.target.value)} placeholder="الوحدة الأولى" /></label>
+              <label className="field"><span>الدرس</span><input value={sessionLesson} onChange={(event) => setSessionLesson(event.target.value)} placeholder="اسم الدرس" /></label>
+            </div>
             <p className="quiz-hint">
               لكي يظهر الفيديو فعليًا داخل الموقع لكل طالب، يجب مشاركة الملف من Google Drive كـ«أي شخص
               لديه الرابط: عارض» (وليس بريدًا محددًا فقط)، ثم تفعيل «تقييد التنزيل والطباعة والنسخ» من
@@ -253,6 +271,7 @@ const TeacherDashboardPage = () => {
                   <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>{session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}</span>
                   <button type="button" className="logout-button" onClick={() => {
                     setSelectedStudentId(session.studentId); setVideoTitle(session.videoTitle); setDriveFileId(session.driveFileId); setEditingSessionId(session.id);
+                    setSessionTrack(session.curriculum?.track ?? "term"); setSessionTerm(session.curriculum?.term ?? "الفصل الأول"); setSessionUnit(session.curriculum?.unit ?? ""); setSessionLesson(session.curriculum?.lesson ?? "");
                   }}>تعديل</button>
                   <button type="button" className="logout-button" onClick={() => void handleCopySession(session)}>نسخ</button>
                   <button type="button" className="logout-button" onClick={() => void handleDeleteSession(session.id)}>حذف</button>

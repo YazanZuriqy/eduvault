@@ -33,7 +33,7 @@ service cloud.firestore {
       allow update: if isTeacher() || (
         request.auth != null &&
         request.auth.uid == resource.data.studentId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizPassed'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizPassed', 'watchedAt'])
       );
     }
     match /quizzes/{quizId} {

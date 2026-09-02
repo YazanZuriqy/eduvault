@@ -47,6 +47,10 @@ body {
   display: inline-block;
 }
 .teacher-portrait { background: linear-gradient(135deg, #78c8d1, #fa765d); border: 2px solid #d4ef58; border-radius: 50%; box-shadow: 0 0 0 5px #78c8d133, 0 12px 30px #00000055; height: 54px; object-fit: cover; object-position: top; width: 54px; }
+@keyframes portraitDrift { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-18px) rotate(1deg); } }
+.hero-portrait-stage { bottom: -14px; filter: drop-shadow(0 28px 30px #00000088); left: 2%; pointer-events: none; position: absolute; width: min(45vw, 650px); z-index: 2; }
+.hero-portrait { animation: portraitDrift 7s ease-in-out infinite; display: block; height: auto; max-height: 78vh; object-fit: contain; object-position: bottom; width: 100%; }
+.hero-copy { margin-left: auto; text-align: right; }
 
 /* Auth page */
 .auth-page { align-items: center; background: var(--ink); color: var(--paper); display: flex; justify-content: center; min-height: 100vh; padding: 40px 20px; }
@@ -147,9 +151,21 @@ body {
 .note-timestamp-form .field { flex: 1; }
 .session-link { align-items: center; color: inherit; display: flex; gap: 12px; justify-content: space-between; text-decoration: none; width: 100%; }
 .session-item-locked { color: #90a29a; }
+.student-overview { align-items: center; display: flex; gap: 28px; justify-content: space-between; }
+.student-overview .student-report-grid { flex: 1; }
+.notification-panel { background: #fff9e8; border-color: #efdba5; }
+.notification-panel h2 { color: #6b4a12; }
+.notification-panel ul { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.notification-panel li { background: #ffffff; border: 1px solid #efdba5; border-radius: 999px; color: #6b4a12; font-size: 13px; padding: 8px 12px; }
+.curriculum-session-groups { display: flex; flex-direction: column; gap: 20px; }
+.curriculum-session-group { border-right: 3px solid var(--sky); padding-right: 14px; }
+.curriculum-session-group h3 { color: #355b56; font-size: 15px; margin: 0 0 10px; }
 
 @media (max-width: 900px) {
   .session-viewer-grid { grid-template-columns: 1fr; }
+  .student-overview { align-items: stretch; flex-direction: column; }
+  .hero-portrait-stage { bottom: -8px; left: -7%; opacity: .48; width: min(76vw, 460px); }
+  .hero-copy { margin-left: 0; }
 }
 
 /* Quiz modal */
@@ -218,4 +234,10 @@ body {
   .graph-bounds { grid-template-columns: repeat(2, 1fr); }
   .graph-domain-row { grid-template-columns: 1fr 1fr; }
   .curriculum-grid { grid-template-columns: 1fr 1fr; }
+  .dashboard-shell { padding: 18px 14px; }
+  .dashboard-header { align-items: flex-start; gap: 14px; }
+  .dashboard-header .logout-button { flex-shrink: 0; padding: 9px 11px; }
+  .session-list li { align-items: flex-start; flex-wrap: wrap; }
+  .session-list li .logout-button { padding: 7px 10px; }
+  .student-overview .student-report-grid { grid-template-columns: repeat(2, 1fr); }
 }

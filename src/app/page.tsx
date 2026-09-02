@@ -8,6 +8,9 @@ const featureCards = [
 
 const Home = () => (
   <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="hero-portrait-stage" aria-hidden="true">
+      <img src="https://raw.githubusercontent.com/YazanZuriqy/eduvault/main/1762011839721%281%29%281%29.png" alt="" className="hero-portrait" />
+    </div>
     <div
       aria-hidden="true"
       className="pointer-events-none absolute -right-40 -top-40 h-[32rem] w-[32rem] rounded-full bg-indigo-600/30 blur-[120px]"
@@ -35,7 +38,7 @@ const Home = () => (
         </Link>
       </nav>
 
-      <div className="z-10 mt-20 max-w-3xl sm:mt-28 lg:mt-36">
+      <div className="hero-copy z-10 mt-20 max-w-3xl sm:mt-28 lg:mt-36">
         <p className="font-mono text-xs uppercase tracking-[0.35em] text-cyan-400">
           PRIVATE LEARNING PLATFORM
         </p>

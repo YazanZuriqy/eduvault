@@ -27,6 +27,13 @@ export interface SessionDoc {
   videoTitle: string;
   driveFileId: string;
   quizPassed: boolean;
+  watchedAt?: number;
+  curriculum?: {
+    track: "foundation" | "term";
+    term?: string;
+    unit?: string;
+    lesson?: string;
+  };
   createdAt: number;
 }
 
@@ -56,6 +63,7 @@ export interface QuizDoc {
     unit?: string;
     lesson?: string;
   };
+  createdAt?: number;
   questions: QuizQuestion[];
 }
 
