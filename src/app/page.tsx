@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+const portraitSrc = `${process.env.NEXT_PUBLIC_BASE_PATH ?? "/eduvault"}/teacher-portrait.png`;
+
 const featureCards = [
   { number: "01", title: "جلساتك في مكان واحد", detail: "فيديوهات مخصصة ومسار تعلم واضح لكل طالب." },
   { number: "02", title: "تقدم يمكن متابعته", detail: "اختبارات قصيرة ومؤشرات إنجاز دقيقة." },
@@ -9,7 +11,7 @@ const featureCards = [
 const Home = () => (
   <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
     <div className="hero-portrait-stage" aria-hidden="true">
-      <img src="/eduvault/teacher-portrait.png" alt="" className="hero-portrait" />
+      <img src={portraitSrc} alt="" className="hero-portrait" />
     </div>
     <div
       aria-hidden="true"
@@ -27,7 +29,7 @@ const Home = () => (
     >
       <nav aria-label="التنقل الرئيسي" className="flex items-center justify-between" dir="ltr">
         <a href="#site-title" className="flex items-center gap-3 text-2xl font-bold tracking-tight text-white">
-          <img src="/eduvault/teacher-portrait.png" alt="الأستاذ يزن الزريقي" className="teacher-portrait" />
+          <img src={portraitSrc} alt="الأستاذ يزن الزريقي" className="teacher-portrait" />
           <span>EduVault<span className="text-cyan-400">.</span></span>
         </a>
         <Link

@@ -7,6 +7,9 @@ const nextConfig: NextConfig = {
   },
   basePath: "/eduvault",
   assetPrefix: "/eduvault",
+  env: {
+    NEXT_PUBLIC_BASE_PATH: "/eduvault",
+  },
 };
 
 export default nextConfig;
