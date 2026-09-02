@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // لا وجود لدوال سحابية على خطة Spark، فلا يمكن ضبط Custom Claims؛ الدور يُقرأ مباشرة من مستند المستخدم.
+    function isTeacher() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
+    }
+
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isTeacher());
+      allow create: if request.auth != null && (
+        request.auth.uid == userId ||
+        (isTeacher() && request.resource.data.role == 'student')
+      );
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if request.auth != null && (request.auth.uid == userId || isTeacher());
+    }
+    match /sessions/{sessionId} {
+      allow create, delete: if isTeacher();
+      allow read: if request.auth != null && (request.auth.uid == resource.data.studentId || isTeacher());
+      // الطالب يُسمح له بتحديث حقل quizPassed فقط في جلسته؛ أي حقل آخر يبقى حصرًا للمعلّم.
+      allow update: if isTeacher() || (
+        request.auth != null &&
+        request.auth.uid == resource.data.studentId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['quizPassed'])
+      );
+    }
+    match /quizzes/{quizId} {
+      allow write: if isTeacher();
+      allow read: if request.auth != null;
+    }
+    match /notes/{noteId} {
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;
+      allow read, update, delete: if request.auth != null && request.auth.uid == resource.data.studentId;
+    }
+  }
+}
