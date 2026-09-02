@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { FirebaseError } from "firebase/app";
 import { createStudentAccount, deleteStudentAccount, generateStudentPassword, translateFirebaseError } from "@/utils/auth";
 import { createStudentDriveFolder, isGoogleDriveConfigured, requestGoogleDriveToken } from "@/utils/googleDrive";
@@ -31,6 +31,11 @@ const StudentManager = ({ students }: StudentManagerProps) => {
   const [selectedStudent, setSelectedStudent] = useState<UserDoc | null>(null);
   const gradeLevels = [...new Set(students.map((student) => student.gradeLevel).filter(Boolean))] as string[];
   const visibleStudents = gradeFilter === "all" ? students : students.filter((student) => student.gradeLevel === gradeFilter);
+
+  useEffect(() => {
+    if (!selectedStudent) return;
+    setSelectedStudent(students.find((student) => student.uid === selectedStudent.uid) ?? null);
+  }, [students, selectedStudent]);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

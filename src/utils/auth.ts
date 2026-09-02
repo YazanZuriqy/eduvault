@@ -2,10 +2,11 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  updatePassword,
 } from "firebase/auth";
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb, getSecondaryAuth } from "@/utils/firebase";
-import type { UserDoc, UserRole } from "@/types";
+import type { StudentCredentialDoc, UserDoc, UserRole } from "@/types";
 
 interface RegisterInput {
   email: string;
@@ -48,6 +49,7 @@ export const loginUser = async (email: string, password: string): Promise<UserDo
     throw new Error("لم يتم العثور على بيانات هذا الحساب.");
   }
 
+  if (userDoc.role === "student") await authorizeStudentDevice(userDoc);
   return userDoc;
 };
 
@@ -58,6 +60,38 @@ export const logoutUser = async (): Promise<void> => {
 export const fetchUserDoc = async (uid: string): Promise<UserDoc | null> => {
   const snapshot = await getDoc(doc(getFirebaseDb(), "users", uid));
   return snapshot.exists() ? (snapshot.data() as UserDoc) : null;
+};
+
+const getBrowserDeviceId = (): string => {
+  const key = "eduvault-device-id";
+  const stored = window.localStorage.getItem(key);
+  if (stored) return stored;
+  const deviceId = crypto.randomUUID();
+  window.localStorage.setItem(key, deviceId);
+  return deviceId;
+};
+
+const authorizeStudentDevice = async (userDoc: UserDoc): Promise<void> => {
+  const deviceId = getBrowserDeviceId();
+  if (userDoc.deviceId && userDoc.deviceId !== deviceId) {
+    await signOut(getFirebaseAuth());
+    throw new Error("هذا الحساب مرتبط بجهاز آخر. اطلب من المعلّم تحرير الجهاز من ملفك.");
+  }
+  if (!userDoc.deviceId) {
+    await updateDoc(doc(getFirebaseDb(), "users", userDoc.uid), { deviceId, deviceBoundAt: Date.now() });
+  }
+};
+
+export const completeStudentActivation = async (newPassword: string): Promise<void> => {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("انتهت جلسة الدخول. سجّل الدخول برمز التفعيل مجددًا.");
+  await updatePassword(user, newPassword);
+  await updateDoc(doc(getFirebaseDb(), "users", user.uid), { activationPending: false });
+};
+
+export const fetchStudentCredential = async (studentId: string): Promise<StudentCredentialDoc | null> => {
+  const snapshot = await getDoc(doc(getFirebaseDb(), "studentCredentials", studentId));
+  return snapshot.exists() ? (snapshot.data() as StudentCredentialDoc) : null;
 };
 
 const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
@@ -100,12 +134,18 @@ export const createStudentAccount = async ({
       displayName,
       phone,
       createdAt: Date.now(),
+      activationPending: true,
       ...(parentEmail ? { parentEmail } : {}),
       ...(gradeLevel ? { gradeLevel } : {}),
       ...(driveFolderId ? { driveFolderId } : {}),
     };
 
     await setDoc(doc(getFirebaseDb(), "users", credential.user.uid), userDoc);
+    await setDoc(doc(getFirebaseDb(), "studentCredentials", credential.user.uid), {
+      studentId: credential.user.uid,
+      activationCode: password,
+      createdAt: Date.now(),
+    } satisfies StudentCredentialDoc);
     return userDoc;
   } finally {
     await signOut(secondaryAuth);

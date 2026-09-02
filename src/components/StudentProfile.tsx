@@ -1,9 +1,9 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
+import { collection, deleteField, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
-import type { QuizDoc, SessionDoc, UserDoc } from "@/types";
+import type { QuizDoc, SessionDoc, StudentCredentialDoc, UserDoc } from "@/types";
 
 interface StudentProfileProps {
   student: UserDoc;
@@ -20,6 +20,7 @@ const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
   const [gradeLevel, setGradeLevel] = useState(student.gradeLevel ?? "");
   const [sessions, setSessions] = useState<SessionWithId[]>([]);
   const [quizzes, setQuizzes] = useState<QuizWithId[]>([]);
+  const [credential, setCredential] = useState<StudentCredentialDoc | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -33,9 +34,13 @@ const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
       query(collection(db, "quizzes"), where("studentIds", "array-contains", student.uid)),
       (snapshot) => setQuizzes(snapshot.docs.map((entry) => ({ ...(entry.data() as QuizDoc), id: entry.id }))),
     );
+    const unsubscribeCredential = onSnapshot(doc(db, "studentCredentials", student.uid), (snapshot) => {
+      setCredential(snapshot.exists() ? (snapshot.data() as StudentCredentialDoc) : null);
+    });
     return () => {
       unsubscribeSessions();
       unsubscribeQuizzes();
+      unsubscribeCredential();
     };
   }, [student.uid]);
 
@@ -55,6 +60,19 @@ const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
       setMessage("تعذر حفظ بيانات الطالب.");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleClearDevice = async () => {
+    if (!window.confirm("سيحتاج الطالب إلى تسجيل الدخول مجددًا من جهازه الجديد. هل تريد تحرير الجهاز؟")) return;
+    try {
+      await updateDoc(doc(getFirebaseDb(), "users", student.uid), {
+        deviceId: deleteField(),
+        deviceBoundAt: deleteField(),
+      });
+      setMessage("تم تحرير الجهاز. سيُسجّل الجهاز التالي عند أول دخول صحيح.");
+    } catch {
+      setMessage("تعذر تحرير الجهاز.");
     }
   };
 
@@ -87,7 +105,15 @@ const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
           <label className="field"><span>بريد ولي الأمر</span><input value={parentEmail} onChange={(event) => setParentEmail(event.target.value)} dir="ltr" /></label>
           <label className="field"><span>المرحلة الدراسية</span><input value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} /></label>
           <label className="field"><span>معرّف ملف Drive</span><input value={student.driveFolderId ?? "لم يُنشأ بعد"} readOnly dir="ltr" /></label>
-          <p className="quiz-hint">لا يمكن إظهار كلمة المرور القديمة بصورة آمنة. أنشئ حسابًا جديدًا أو أضف مسار إعادة تعيين كلمة المرور لاحقًا عند الحاجة.</p>
+          <div className="activation-code-box">
+            <span>رمز التفعيل المولّد</span>
+            <code dir="ltr">{credential?.activationCode ?? "لم يعد متاحًا"}</code>
+            <small>يُستخدم مرة واحدة فقط عند أول دخول، ثم يختار الطالب كلمة مروره الخاصة.</small>
+          </div>
+          <div className="device-control">
+            <span>{student.deviceId ? "الجهاز مرتبط حاليًا" : "لا يوجد جهاز مرتبط"}</span>
+            <button type="button" className="logout-button" disabled={!student.deviceId} onClick={() => void handleClearDevice}>تحرير الجهاز</button>
+          </div>
           {message && <p className="form-feedback">{message}</p>}
           <button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? "جارٍ الحفظ..." : "حفظ البيانات"}</button>
         </form>

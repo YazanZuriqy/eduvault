@@ -107,6 +107,10 @@ body {
 .student-report-grid span { color: #557069; font-size: 12px; margin-top: 4px; }
 .student-profile-columns { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .student-activity { display: flex; flex-direction: column; gap: 12px; }
+.activation-code-box { background: #10231f; border-radius: 8px; color: #eff3eb; display: flex; flex-direction: column; gap: 6px; padding: 12px; }
+.activation-code-box code { color: var(--lime); font-size: 18px; }
+.activation-code-box small { color: #b7c4b1; }
+.device-control { align-items: center; background: var(--paper); border-radius: 8px; display: flex; font-size: 13px; justify-content: space-between; padding: 10px; }
 
 @media (max-width: 800px) {
   .dashboard-grid { grid-template-columns: 1fr; }
@@ -185,6 +189,9 @@ body {
 .math-tool-button:hover { background: #ffffff; border-color: var(--lime); box-shadow: 0 0 0 2px #d4ef5855; }
 .math-field-shell { background: #ffffff; border: 1px solid #cbd4c8; border-radius: 10px; direction: ltr; min-height: 64px; padding: 10px; }
 .quiz-options { display: flex; flex-direction: column; gap: 12px; }
+.inline-editor-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.inline-editor-actions button, .graph-symbols button { background: #ffffff; border: 1px solid #cbd4c8; border-radius: 6px; color: var(--ink); cursor: pointer; font: inherit; font-size: 12px; padding: 6px 10px; }
+.inline-editor-actions button:hover, .graph-symbols button:hover { border-color: var(--coral); }
 .option-preview { background: var(--paper); border-radius: 8px; display: block; margin-top: 6px; padding: 8px 12px; }
 .image-uploader { border: 1px solid #d8e0d3; border-radius: 12px; padding: 16px; }
 .image-drop-zone { align-items: center; background: var(--paper); border: 2px dashed #b7c4b1; border-radius: 10px; cursor: pointer; display: flex; justify-content: center; margin-bottom: 14px; padding: 26px 16px; text-align: center; transition: border-color 0.2s ease, background 0.2s ease; }
@@ -194,6 +201,7 @@ body {
 .graph-generator { border: 1px solid #d8e0d3; border-radius: 12px; display: flex; flex-direction: column; gap: 14px; margin-top: 16px; padding: 16px; }
 .graph-bounds { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
 .graph-piece { background: var(--paper); border-radius: 10px; display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+.graph-symbols { display: flex; flex-wrap: wrap; gap: 6px; }
 .graph-domain-row { align-items: end; display: grid; gap: 10px; grid-template-columns: 1fr auto 1fr auto; }
 .checkbox-field { align-items: center; display: flex; font-size: 13px; gap: 6px; }
 .graph-canvas { background: #ffffff; border: 1px solid #d8e0d3; border-radius: 10px; max-width: 100%; }

@@ -14,10 +14,17 @@ service cloud.firestore {
         (isTeacher() && request.resource.data.role == 'student')
       );
       allow update: if request.auth != null && (
-        request.auth.uid == userId ||
-        (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student')
+        (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student') ||
+        (request.auth.uid == userId && resource.data.role == 'student' &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceId', 'deviceBoundAt', 'activationPending']) &&
+          (!('deviceId' in resource.data) ||
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activationPending']))) ||
+        (request.auth.uid == userId && resource.data.role == 'teacher')
       );
       allow delete: if request.auth != null && (request.auth.uid == userId || isTeacher());
+    }
+    match /studentCredentials/{studentId} {
+      allow read, write: if isTeacher();
     }
     match /sessions/{sessionId} {
       allow create, delete: if isTeacher();

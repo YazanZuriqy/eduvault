@@ -194,10 +194,18 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
   const [yMin, setYMin] = useState("-10");
   const [yMax, setYMax] = useState("10");
   const [error, setError] = useState<string | null>(null);
+  const [activePieceKey, setActivePieceKey] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   const updatePiece = (key: string, patch: Partial<Piece>) => {
     setPieces((prev) => prev.map((piece) => (piece.key === key ? { ...piece, ...patch } : piece)));
+  };
+
+  const insertGraphToken = (token: string) => {
+    const key = activePieceKey ?? pieces[0]?.key;
+    if (!key) return;
+    const current = pieces.find((piece) => piece.key === key);
+    if (current) updatePiece(key, { expression: `${current.expression}${token}` });
   };
 
   const toPixel = (value: number, min: number, max: number, size: number, invert = false) => {
@@ -359,6 +367,12 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
         </label>
       </div>
 
+      <div className="graph-symbols" aria-label="رموز الاقتران">
+        {["+", "-", "*", "/", "^", "(", ")", "x", "pi", "sin(", "cos(", "sqrt("].map((token) => (
+          <button type="button" key={token} onClick={() => insertGraphToken(token)}>{token}</button>
+        ))}
+      </div>
+
       {pieces.map((piece, index) => (
         <div key={piece.key} className="graph-piece">
           <label className="field">
@@ -367,6 +381,7 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
               type="text"
               value={piece.expression}
               onChange={(event) => updatePiece(piece.key, { expression: event.target.value })}
+              onFocus={() => setActivePieceKey(piece.key)}
               placeholder="مثال: x^2 + 2*x - 1"
               dir="ltr"
             />

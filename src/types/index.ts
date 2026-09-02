@@ -7,8 +7,17 @@ export interface UserDoc {
   displayName: string;
   gradeLevel?: string;
   driveFolderId?: string;
+  activationPending?: boolean;
+  deviceId?: string;
+  deviceBoundAt?: number;
   phone?: string;
   parentEmail?: string;
+  createdAt: number;
+}
+
+export interface StudentCredentialDoc {
+  studentId: string;
+  activationCode: string;
   createdAt: number;
 }
 

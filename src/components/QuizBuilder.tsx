@@ -269,6 +269,12 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
     mathFieldRef.current?.insert(latex, { focus: true });
   };
 
+  const activateTarget = (target: MathTarget, workspace: "content" | "media" = "content") => {
+    setActiveTarget(target);
+    setActiveWorkspaceTab(workspace);
+    window.setTimeout(() => mathFieldRef.current?.focus(), 0);
+  };
+
   const handleMediaUploaded = async (url: string, kind: QuizMedia["kind"]) => {
     const target = activeTarget;
     const current = questions[activeIndex];
@@ -554,8 +560,14 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
                   nextOptions[optionIndex] = event.target.value;
                   updateActiveQuestion({ options: nextOptions });
                 }}
+                onFocus={() => activateTarget({ kind: "option", index: optionIndex })}
                 placeholder="اكتب نص الخيار، أو اختر تبويب هذا الخيار أعلاه لإدراج رموز رياضية"
               />
+              <div className="inline-editor-actions">
+                <button type="button" onClick={() => activateTarget({ kind: "option", index: optionIndex })}>رموز ومعادلات</button>
+                <button type="button" onClick={() => activateTarget({ kind: "option", index: optionIndex }, "media")}>إدراج صورة</button>
+                <button type="button" onClick={() => activateTarget({ kind: "option", index: optionIndex }, "media")}>إدراج رسم</button>
+              </div>
               {option.trim() && <MathText content={option} className="option-preview" />}
               {(activeQuestion.optionMedia?.[String(optionIndex)] ?? []).map((media, mediaIndex) => (
                 <img key={`${media.url}-${mediaIndex}`} src={media.url} alt="وسيط الخيار" className="option-media-preview" />
