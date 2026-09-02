@@ -21,6 +21,7 @@ import StudentManager from "@/components/StudentManager";
 import type { SessionDoc, UserDoc } from "@/types";
 
 type SessionWithId = SessionDoc & { id: string };
+type Workspace = "overview" | "sessions" | "students" | "quiz";
 
 const TeacherDashboardPage = () => {
   const router = useRouter();
@@ -34,6 +35,8 @@ const TeacherDashboardPage = () => {
   const [isLinking, setIsLinking] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [workspace, setWorkspace] = useState<Workspace>("overview");
+  const [quizStudentId, setQuizStudentId] = useState<string | undefined>();
 
   useEffect(() => {
     if (!isLoading && (!firebaseUser || userDoc?.role !== "teacher")) {
@@ -117,6 +120,19 @@ const TeacherDashboardPage = () => {
     await deleteDoc(doc(getFirebaseDb(), "sessions", sessionId));
   };
 
+  const openStudentSession = (student: UserDoc) => {
+    setSelectedStudentId(student.uid);
+    setVideoTitle("");
+    setDriveFileId("");
+    setEditingSessionId(null);
+    setWorkspace("sessions");
+  };
+
+  const openStudentQuiz = (student: UserDoc) => {
+    setQuizStudentId(student.uid);
+    setWorkspace("quiz");
+  };
+
   if (isLoading || userDoc?.role !== "teacher") {
     return (
       <main className="dashboard-shell">
@@ -145,6 +161,31 @@ const TeacherDashboardPage = () => {
       </header>
 
       <section className="dashboard-grid">
+        <article className="panel panel-wide teacher-command-panel">
+          <div>
+            <p className="dashboard-eyebrow">WORKSPACE</p>
+            <h2>مساحة إدارة التعليم</h2>
+          </div>
+          <div className="teacher-command-bar">
+            <button type="button" className={workspace === "overview" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("overview")}>نظرة عامة</button>
+            <button type="button" className={workspace === "students" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("students")}>ملفات الطلاب</button>
+            <button type="button" className={workspace === "sessions" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("sessions")}>الجلسات والفيديو</button>
+            <button type="button" className={workspace === "quiz" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("quiz")}>بناء اختبار</button>
+          </div>
+        </article>
+
+        {workspace === "overview" && <>
+        <article className="panel dashboard-summary">
+          <strong>{students.length}</strong><span>طالب نشط</span>
+          <button type="button" className="logout-button" onClick={() => setWorkspace("students")}>إدارة الطلاب</button>
+        </article>
+        <article className="panel dashboard-summary">
+          <strong>{sessions.length}</strong><span>جلسة مرتبطة</span>
+          <button type="button" className="logout-button" onClick={() => setWorkspace("sessions")}>إدارة الجلسات</button>
+        </article>
+        </>}
+
+        {workspace === "sessions" && <>
         <article className="panel">
           <h2>{editingSessionId ? "تعديل الجلسة" : "ربط فيديو جديد بطالب"}</h2>
           <form className="link-form" onSubmit={handleLinkVideo}>
@@ -200,11 +241,6 @@ const TeacherDashboardPage = () => {
           </form>
         </article>
 
-        <article className="panel">
-          <h2>إدارة الطلاب ({students.length})</h2>
-          <StudentManager students={students} />
-        </article>
-
         <article className="panel panel-wide">
           <h2>الجلسات المرتبطة ({sessions.length})</h2>
           <ul className="session-list">
@@ -214,15 +250,9 @@ const TeacherDashboardPage = () => {
                 <li key={session.id}>
                   <span className="session-title">{session.videoTitle}</span>
                   <span className="session-student">{student?.displayName ?? session.studentId}</span>
-                  <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>
-                    {session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}
-                  </span>
+                  <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>{session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}</span>
                   <button type="button" className="logout-button" onClick={() => {
-                    setSelectedStudentId(session.studentId);
-                    setVideoTitle(session.videoTitle);
-                    setDriveFileId(session.driveFileId);
-                    setEditingSessionId(session.id);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    setSelectedStudentId(session.studentId); setVideoTitle(session.videoTitle); setDriveFileId(session.driveFileId); setEditingSessionId(session.id);
                   }}>تعديل</button>
                   <button type="button" className="logout-button" onClick={() => void handleCopySession(session)}>نسخ</button>
                   <button type="button" className="logout-button" onClick={() => void handleDeleteSession(session.id)}>حذف</button>
@@ -232,11 +262,19 @@ const TeacherDashboardPage = () => {
             {sessions.length === 0 && <li className="empty-state">لم يتم ربط أي جلسات بعد.</li>}
           </ul>
         </article>
+        </>}
 
-        <article className="panel panel-wide">
-          <h2>بناء اختبار جديد</h2>
-          <QuizBuilder sessions={sessions.map(({ id, videoTitle }) => ({ id, videoTitle }))} students={students} />
+        {workspace === "students" && <article className="panel panel-wide">
+          <h2>إدارة الطلاب ({students.length})</h2>
+          <StudentManager students={students} onAddSession={openStudentSession} onAddQuiz={openStudentQuiz} />
         </article>
+        }
+
+        {workspace === "quiz" && <article className="panel panel-wide">
+          <h2>بناء اختبار جديد</h2>
+          <QuizBuilder sessions={sessions.map(({ id, videoTitle }) => ({ id, videoTitle }))} students={students} assignedStudentId={quizStudentId} />
+        </article>
+        }
       </section>
     </main>
   );

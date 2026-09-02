@@ -9,6 +9,8 @@ import type { UserDoc } from "@/types";
 
 interface StudentManagerProps {
   students: UserDoc[];
+  onAddSession: (student: UserDoc) => void;
+  onAddQuiz: (student: UserDoc) => void;
 }
 
 interface GeneratedCredentials {
@@ -16,7 +18,7 @@ interface GeneratedCredentials {
   password: string;
 }
 
-const StudentManager = ({ students }: StudentManagerProps) => {
+const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerProps) => {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -224,7 +226,7 @@ const StudentManager = ({ students }: StudentManagerProps) => {
         ))}
         {visibleStudents.length === 0 && <li className="empty-state">لا يوجد طلاب مطابقون للتصفية.</li>}
       </ul>
-      {selectedStudent && <StudentProfile student={selectedStudent} onClose={() => setSelectedStudent(null)} />}
+      {selectedStudent && <StudentProfile student={selectedStudent} onClose={() => setSelectedStudent(null)} onAddSession={onAddSession} onAddQuiz={onAddQuiz} />}
     </div>
   );
 };

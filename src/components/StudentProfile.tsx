@@ -8,12 +8,14 @@ import type { QuizDoc, SessionDoc, StudentCredentialDoc, UserDoc } from "@/types
 interface StudentProfileProps {
   student: UserDoc;
   onClose: () => void;
+  onAddSession: (student: UserDoc) => void;
+  onAddQuiz: (student: UserDoc) => void;
 }
 
 type SessionWithId = SessionDoc & { id: string };
 type QuizWithId = QuizDoc & { id: string };
 
-const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
+const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentProfileProps) => {
   const [displayName, setDisplayName] = useState(student.displayName);
   const [phone, setPhone] = useState(student.phone ?? "");
   const [parentEmail, setParentEmail] = useState(student.parentEmail ?? "");
@@ -95,6 +97,10 @@ const StudentProfile = ({ student, onClose }: StudentProfileProps) => {
         <div><strong>{completedSessions}</strong><span>اختبارات مجتازة</span></div>
         <div><strong>{quizzes.length}</strong><span>اختبارات مكلّف بها</span></div>
         <div><strong>{progress}%</strong><span>نسبة الإنجاز</span></div>
+      </div>
+      <div className="student-profile-actions">
+        <button type="button" className="primary-button" onClick={() => onAddSession(student)}>رفع جلسة لهذا الطالب</button>
+        <button type="button" className="logout-button" onClick={() => onAddQuiz(student)}>إضافة اختبار لهذا الطالب</button>
       </div>
 
       <div className="student-profile-columns">

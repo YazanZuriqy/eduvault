@@ -13,6 +13,7 @@ import type { QuizDoc, QuizMedia, QuizQuestion, UserDoc } from "@/types";
 interface QuizBuilderProps {
   sessions: { id: string; videoTitle: string }[];
   students: UserDoc[];
+  assignedStudentId?: string;
 }
 
 interface QuestionDraft extends QuizQuestion {
@@ -155,7 +156,7 @@ const createEmptyQuestion = (): QuestionDraft => ({
   correctAnswer: "",
 });
 
-const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
+const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps) => {
   const [sessionId, setSessionId] = useState("");
   const [questions, setQuestions] = useState<QuestionDraft[]>([createEmptyQuestion()]);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -185,6 +186,10 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
   useEffect(() => {
     activeTargetRef.current = activeTarget;
   }, [activeTarget]);
+
+  useEffect(() => {
+    if (assignedStudentId) setSelectedStudentIds([assignedStudentId]);
+  }, [assignedStudentId]);
 
   // MathLive تقرأ document عند الاستيراد، لذا تُستورد ديناميكيًا داخل المتصفح فقط
   // كي لا يكسر تصدير Next.js الثابت (نفس الدرس المطبّق سابقًا على Plyr).
@@ -398,7 +403,7 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
 
   return (
     <div className="quiz-builder">
-      <div className="quiz-type-tabs" role="tablist" aria-label="نوع الاختبار">
+      <div className="quiz-type-tabs" aria-label="نوع الاختبار">
         <button type="button" className={quizType === "daily" ? "quiz-tab active" : "quiz-tab"} onClick={() => setQuizType("daily")}>اختبار يومي</button>
         <button type="button" className={quizType === "comprehensive" ? "quiz-tab active" : "quiz-tab"} onClick={() => setQuizType("comprehensive")}>اختبار شامل</button>
       </div>
@@ -446,7 +451,7 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
         </button>
       </div>
 
-      <div className="quiz-workspace-tabs" role="tablist" aria-label="مساحة بناء الاختبار">
+      <div className="quiz-workspace-tabs" aria-label="مساحة بناء الاختبار">
         <button type="button" className={activeWorkspaceTab === "content" ? "quiz-tab active" : "quiz-tab"} onClick={() => setActiveWorkspaceTab("content")}>المحتوى والرموز</button>
         <button type="button" className={activeWorkspaceTab === "media" ? "quiz-tab active" : "quiz-tab"} onClick={() => setActiveWorkspaceTab("media")}>الصور والرسم</button>
         <button type="button" className={activeWorkspaceTab === "review" ? "quiz-tab active" : "quiz-tab"} onClick={() => setActiveWorkspaceTab("review")}>التكليف والمراجعة</button>
