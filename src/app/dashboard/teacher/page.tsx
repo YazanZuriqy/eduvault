@@ -82,8 +82,10 @@ const TeacherDashboardPage = () => {
     setIsLinking(true);
 
     try {
+      const selectedStudent = students.find((student) => student.uid === selectedStudentId);
       const session: Omit<SessionDoc, "sessionId"> = {
         studentId: selectedStudentId,
+        ...(selectedStudent?.gradeLevel ? { gradeLevel: selectedStudent.gradeLevel } : {}),
         videoTitle,
         driveFileId,
         quizPassed: false,
@@ -216,6 +218,11 @@ const TeacherDashboardPage = () => {
                 ))}
               </select>
             </label>
+            {selectedStudentId && (
+              <p className="linked-student-context">
+                المرحلة المرتبطة تلقائيًا: {students.find((student) => student.uid === selectedStudentId)?.gradeLevel ?? "لم تُحدّد في ملف الطالب"}
+              </p>
+            )}
 
             <label className="field">
               <span>عنوان الجلسة</span>

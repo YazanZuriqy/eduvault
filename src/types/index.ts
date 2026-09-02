@@ -24,6 +24,7 @@ export interface StudentCredentialDoc {
 export interface SessionDoc {
   sessionId: string;
   studentId: string;
+  gradeLevel?: string;
   videoTitle: string;
   driveFileId: string;
   quizPassed: boolean;
