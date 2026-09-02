@@ -162,6 +162,11 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
   const [activeTarget, setActiveTarget] = useState<MathTarget>({ kind: "question" });
   const [activeToolGroup, setActiveToolGroup] = useState(TOOL_GROUPS[0].label);
   const [activeWorkspaceTab, setActiveWorkspaceTab] = useState<"content" | "media" | "review">("content");
+  const [quizType, setQuizType] = useState<"daily" | "comprehensive">("daily");
+  const [track, setTrack] = useState<"foundation" | "term">("term");
+  const [term, setTerm] = useState("الفصل الأول");
+  const [unit, setUnit] = useState("");
+  const [lesson, setLesson] = useState("");
   const [title, setTitle] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
@@ -349,6 +354,13 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
         sessionId,
         title: title.trim() || undefined,
         studentIds: selectedStudentIds,
+        type: quizType,
+        curriculum: {
+          track,
+          ...(track === "term" ? { term } : {}),
+          ...(unit.trim() ? { unit: unit.trim() } : {}),
+          ...(lesson.trim() ? { lesson: lesson.trim() } : {}),
+        },
         questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia }) => ({
           question,
           options,
@@ -365,6 +377,8 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
       setActiveTarget({ kind: "question" });
       setTitle("");
       setSelectedStudentIds([]);
+      setUnit("");
+      setLesson("");
       setFeedback("تم حفظ الاختبار بنجاح.");
     } catch {
       setFeedback("تعذر حفظ الاختبار. حاول مرة أخرى.");
@@ -378,10 +392,26 @@ const QuizBuilder = ({ sessions, students }: QuizBuilderProps) => {
 
   return (
     <div className="quiz-builder">
+      <div className="quiz-type-tabs" role="tablist" aria-label="نوع الاختبار">
+        <button type="button" className={quizType === "daily" ? "quiz-tab active" : "quiz-tab"} onClick={() => setQuizType("daily")}>اختبار يومي</button>
+        <button type="button" className={quizType === "comprehensive" ? "quiz-tab active" : "quiz-tab"} onClick={() => setQuizType("comprehensive")}>اختبار شامل</button>
+      </div>
       <label className="field">
-        <span>اسم الاختبار</span>
+        <span>{quizType === "comprehensive" ? "اسم الاختبار الشامل" : "اسم الاختبار اليومي"}</span>
         <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثال: اختبار الدوال" />
       </label>
+      <div className="curriculum-grid">
+        <label className="field">
+          <span>المسار</span>
+          <select value={track} onChange={(event) => setTrack(event.target.value as "foundation" | "term")}> 
+            <option value="foundation">التأسيس</option>
+            <option value="term">الفصول الدراسية</option>
+          </select>
+        </label>
+        {track === "term" && <label className="field"><span>الفصل</span><input value={term} onChange={(event) => setTerm(event.target.value)} /></label>}
+        <label className="field"><span>الوحدة</span><input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="الوحدة الأولى" /></label>
+        <label className="field"><span>الدرس</span><input value={lesson} onChange={(event) => setLesson(event.target.value)} placeholder="اسم الدرس" /></label>
+      </div>
       <label className="field">
         <span>الجلسة المرتبطة</span>
         <select value={sessionId} onChange={(event) => setSessionId(event.target.value)}>

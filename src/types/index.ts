@@ -40,6 +40,13 @@ export interface QuizDoc {
   sessionId: string;
   studentIds?: string[];
   title?: string;
+  type?: "daily" | "comprehensive";
+  curriculum?: {
+    track: "foundation" | "term";
+    term?: string;
+    unit?: string;
+    lesson?: string;
+  };
   questions: QuizQuestion[];
 }
 

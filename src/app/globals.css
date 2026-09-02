@@ -97,9 +97,21 @@ body {
 .generated-credentials { background: #eef7e5; border: 1px solid #b9d99b; border-radius: 12px; display: flex; flex-direction: column; gap: 8px; padding: 16px; }
 .credential-row { align-items: center; display: flex; gap: 10px; }
 .credential-row code { background: #ffffff; border-radius: 6px; padding: 4px 10px; }
+.student-profile { background: #ffffff; border: 1px solid #b8c9b1; border-radius: 10px; display: flex; flex-direction: column; gap: 20px; padding: 20px; }
+.student-profile-header { align-items: flex-start; display: flex; justify-content: space-between; gap: 12px; }
+.student-profile-header h2, .student-profile-header p, .student-profile h3 { margin: 0; }
+.student-profile-header > div > p:last-child { color: #557069; font-size: 13px; margin-top: 5px; }
+.student-report-grid { display: grid; gap: 10px; grid-template-columns: repeat(4, 1fr); }
+.student-report-grid div { background: var(--paper); border-radius: 8px; display: flex; flex-direction: column; padding: 12px; }
+.student-report-grid strong { font-size: 22px; }
+.student-report-grid span { color: #557069; font-size: 12px; margin-top: 4px; }
+.student-profile-columns { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.student-activity { display: flex; flex-direction: column; gap: 12px; }
 
 @media (max-width: 800px) {
   .dashboard-grid { grid-template-columns: 1fr; }
+  .student-report-grid { grid-template-columns: repeat(2, 1fr); }
+  .student-profile-columns { grid-template-columns: 1fr; }
 }
 
 /* Video player */
@@ -145,6 +157,8 @@ body {
 /* Quiz builder */
 .quiz-builder { display: flex; flex-direction: column; gap: 20px; }
 .quiz-question-tabs { display: flex; flex-wrap: wrap; gap: 8px; }
+.quiz-type-tabs { border-bottom: 1px solid #d8e0d3; display: flex; gap: 8px; padding-bottom: 12px; }
+.curriculum-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .quiz-tab { background: var(--paper); border: 1px solid #cbd4c8; border-radius: 999px; color: var(--ink); cursor: pointer; font: inherit; font-size: 13px; padding: 8px 16px; }
 .quiz-tab.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 .quiz-tab-add { background: transparent; border-style: dashed; }
@@ -186,4 +200,5 @@ body {
 @media (max-width: 700px) {
   .graph-bounds { grid-template-columns: repeat(2, 1fr); }
   .graph-domain-row { grid-template-columns: 1fr 1fr; }
+  .curriculum-grid { grid-template-columns: 1fr 1fr; }
 }

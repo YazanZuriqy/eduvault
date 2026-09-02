@@ -13,7 +13,10 @@ service cloud.firestore {
         request.auth.uid == userId ||
         (isTeacher() && request.resource.data.role == 'student')
       );
-      allow update: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||
+        (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student')
+      );
       allow delete: if request.auth != null && (request.auth.uid == userId || isTeacher());
     }
     match /sessions/{sessionId} {
@@ -28,7 +31,12 @@ service cloud.firestore {
     }
     match /quizzes/{quizId} {
       allow write: if isTeacher();
-      allow read: if request.auth != null;
+      allow read: if isTeacher() || (
+        request.auth != null && (
+          !('studentIds' in resource.data) ||
+          resource.data.studentIds.hasAny([request.auth.uid])
+        )
+      );
     }
     match /notes/{noteId} {
       allow create: if request.auth != null && request.auth.uid == request.resource.data.studentId;

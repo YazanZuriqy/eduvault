@@ -4,6 +4,7 @@ import { type FormEvent, useState } from "react";
 import { FirebaseError } from "firebase/app";
 import { createStudentAccount, deleteStudentAccount, generateStudentPassword, translateFirebaseError } from "@/utils/auth";
 import { createStudentDriveFolder, isGoogleDriveConfigured, requestGoogleDriveToken } from "@/utils/googleDrive";
+import StudentProfile from "@/components/StudentProfile";
 import type { UserDoc } from "@/types";
 
 interface StudentManagerProps {
@@ -27,6 +28,7 @@ const StudentManager = ({ students }: StudentManagerProps) => {
   const [generatedCredentials, setGeneratedCredentials] = useState<GeneratedCredentials | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState("all");
+  const [selectedStudent, setSelectedStudent] = useState<UserDoc | null>(null);
   const gradeLevels = [...new Set(students.map((student) => student.gradeLevel).filter(Boolean))] as string[];
   const visibleStudents = gradeFilter === "all" ? students : students.filter((student) => student.gradeLevel === gradeFilter);
 
@@ -204,6 +206,7 @@ const StudentManager = ({ students }: StudentManagerProps) => {
           <li key={student.uid}>
             <span className="student-name">{student.displayName}</span>
             <span className="student-email">{student.email}{student.gradeLevel ? ` - ${student.gradeLevel}` : ""}</span>
+            <button type="button" className="logout-button" onClick={() => setSelectedStudent(student)}>ملف الطالب</button>
             <button
               type="button"
               className="logout-button"
@@ -216,6 +219,7 @@ const StudentManager = ({ students }: StudentManagerProps) => {
         ))}
         {visibleStudents.length === 0 && <li className="empty-state">لا يوجد طلاب مطابقون للتصفية.</li>}
       </ul>
+      {selectedStudent && <StudentProfile student={selectedStudent} onClose={() => setSelectedStudent(null)} />}
     </div>
   );
 };
