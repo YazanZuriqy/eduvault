@@ -9,7 +9,7 @@ const featureCards = [
 const Home = () => (
   <main className="relative min-h-screen overflow-hidden bg-slate-950 text-slate-100">
     <div className="hero-portrait-stage" aria-hidden="true">
-      <img src="/teacher-portrait.png" alt="" className="hero-portrait" />
+      <img src="/eduvault/teacher-portrait.png" alt="" className="hero-portrait" />
     </div>
     <div
       aria-hidden="true"
@@ -27,7 +27,7 @@ const Home = () => (
     >
       <nav aria-label="التنقل الرئيسي" className="flex items-center justify-between" dir="ltr">
         <a href="#site-title" className="flex items-center gap-3 text-2xl font-bold tracking-tight text-white">
-          <img src="/teacher-portrait.png" alt="الأستاذ يزن الزريقي" className="teacher-portrait" />
+          <img src="/eduvault/teacher-portrait.png" alt="الأستاذ يزن الزريقي" className="teacher-portrait" />
           <span>EduVault<span className="text-cyan-400">.</span></span>
         </a>
         <Link
