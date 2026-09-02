@@ -48,8 +48,8 @@ body {
 }
 .teacher-portrait { background: linear-gradient(135deg, #78c8d1, #fa765d); border: 2px solid #d4ef58; border-radius: 50%; box-shadow: 0 0 0 5px #78c8d133, 0 12px 30px #00000055; height: 54px; object-fit: cover; object-position: top; width: 54px; }
 @keyframes portraitDrift { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-18px) rotate(1deg); } }
-.hero-portrait-stage { bottom: -14px; filter: drop-shadow(0 28px 30px #00000088); left: 2%; pointer-events: none; position: absolute; width: min(45vw, 650px); z-index: 2; }
-.hero-portrait { animation: portraitDrift 7s ease-in-out infinite; display: block; height: auto; max-height: 78vh; object-fit: contain; object-position: bottom; width: 100%; }
+.hero-portrait-stage { bottom: -14px; filter: drop-shadow(0 28px 30px #00000088); left: 1%; pointer-events: none; position: absolute; width: min(48vw, 700px); z-index: 2; }
+.hero-portrait { animation: portraitDrift 7s ease-in-out infinite; display: block; height: auto; max-height: 82vh; object-fit: contain; object-position: bottom; width: 100%; }
 .hero-copy { margin-left: auto; text-align: right; }
 
 /* Auth page */
