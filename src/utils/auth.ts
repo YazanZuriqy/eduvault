@@ -6,8 +6,18 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
-import { getFirebaseAuth, getFirebaseDb } from "@/utils/firebase";
+import { getFirebaseAuth, getFirebaseDb, getSecondaryAuth } from "@/utils/firebase";
 import type { StudentCredentialDoc, StudentInviteDoc, TeacherInviteDoc, UserDoc, UserRole } from "@/types";
+
+// كلمة مرور عشوائية عالية الإنتروبيا تُستخدم لحظيًا فقط لتلبية شرط createUserWithEmailAndPassword،
+// ثم تُهمل فورًا: لا يراها المالك ولا يُخزّنها في أي مكان — الحساب الجديد يصله رابط Firebase
+// الرسمي لتعيين كلمة مروره الفعلية بنفسه عبر sendPasswordResetEmail.
+const generateDiscardedPassword = (): string => {
+  const charset = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%";
+  const randomValues = new Uint32Array(24);
+  window.crypto.getRandomValues(randomValues);
+  return Array.from(randomValues, (value) => charset[value % charset.length]).join("");
+};
 
 interface RegisterInput {
   email: string;
@@ -91,6 +101,32 @@ export const createTeacherInvite = async (email: string): Promise<TeacherInviteD
 
   await setDoc(doc(db, "teacherInvites", code), invite);
   return invite;
+};
+
+// إجراء المالك حصرًا: يُنشئ حساب معلّم فورًا ونشطًا بالكامل دون أي كود دعوة أو معامل معلّق
+// (يتجاوز بوابة مكافحة التسلّل عمدًا لأن المالك نفسه هو من يستدعيها بثقة كاملة). يُنشئ الحساب عبر
+// مثيل Firebase ثانوي منعزل كي تبقى جلسة المالك الحالية سليمة، ولا يرى/يتعامل مع أي
+// كلمة مرور للمعلّم الجديد إطلاقًا: يصله رابط Firebase الرسمي لتعيين كلمة مروره بنفسه فورًا.
+export const createTeacherAccountDirect = async (input: { email: string; displayName: string }): Promise<UserDoc> => {
+  const secondaryAuth = getSecondaryAuth();
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  try {
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, generateDiscardedPassword());
+    const userDoc: UserDoc = {
+      uid: credential.user.uid,
+      email: normalizedEmail,
+      role: "teacher",
+      displayName: input.displayName,
+      createdAt: Date.now(),
+    };
+
+    await setDoc(doc(getFirebaseDb(), "users", credential.user.uid), userDoc);
+    await sendPasswordResetEmail(getFirebaseAuth(), normalizedEmail);
+    return userDoc;
+  } finally {
+    await signOut(secondaryAuth);
+  }
 };
 
 // يرسل رابط إعادة تعيين كلمة المرور عبر بريد Firebase الرسمي — يعمل لأي حساب (معلّم أو طالب) طالما
@@ -242,6 +278,41 @@ export const createStudentInvite = async (input: CreateStudentInviteInput): Prom
 
   await setDoc(doc(db, "studentInvites", code), invite);
   return invite;
+};
+
+// إجراء المالك حصرًا: يُنشئ حساب طالب فورًا ونشطًا بالكامل (يتجاوز تدفق الدعوة/الرمز)، ويمنحه تلقائيًا سنة
+// كاملة من اشتراك التميّز من تاريخ الإنشاء. مثل المعلّم المباشر، لا يرى المالك أو يتعامل مع
+// كلمة مرور الطالب إطلاقًا: يصله رابط Firebase الرسمي لتعيين كلمة مروره بنفسه.
+export const createStudentAccountDirect = async (input: CreateStudentInviteInput): Promise<UserDoc> => {
+  const secondaryAuth = getSecondaryAuth();
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  try {
+    const credential = await createUserWithEmailAndPassword(secondaryAuth, normalizedEmail, generateDiscardedPassword());
+    const userDoc: UserDoc = {
+      uid: credential.user.uid,
+      email: normalizedEmail,
+      role: "student",
+      displayName: input.displayName,
+      phone: input.phone,
+      createdAt: Date.now(),
+      studentCode: generateStudentCode(),
+      biometricLocked: false,
+      primaryDeviceId: null,
+      secondaryDeviceId: null,
+      studentPremiumActive: true,
+      studentPremiumExpiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000,
+      ...(input.parentEmail ? { parentEmail: input.parentEmail } : {}),
+      ...(input.gradeLevel ? { gradeLevel: input.gradeLevel } : {}),
+      ...(input.driveFolderId ? { driveFolderId: input.driveFolderId } : {}),
+    };
+
+    await setDoc(doc(getFirebaseDb(), "users", credential.user.uid), userDoc);
+    await sendPasswordResetEmail(getFirebaseAuth(), normalizedEmail);
+    return userDoc;
+  } finally {
+    await signOut(secondaryAuth);
+  }
 };
 
 interface RegisterStudentInput {

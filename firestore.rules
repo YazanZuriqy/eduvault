@@ -17,12 +17,14 @@ service cloud.firestore {
       allow create: if request.auth != null && (
         (isTeacher() && request.resource.data.role == 'student') ||
         (request.auth.uid == userId && request.resource.data.role == 'student') ||
-        // معلّم جديد: يُشترط كود دعوة صالح وغير مستخدم مرتبط بالبريد نفسه (بوابة مكافحة التسلل).
+        // معلّم جديد عبر التسجيل الذاتي: يُشترط كود دعوة صالح وغير مستخدم مرتبط بالبريد نفسه (بوابة مكافحة التسلل).
         (request.auth.uid == userId && request.resource.data.role == 'teacher' &&
           'teacherInviteCode' in request.resource.data &&
           exists(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)) &&
           get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)).data.email == request.resource.data.email &&
-          get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)).data.used == false)
+          get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)).data.used == false) ||
+        // تجاوز المالك المباشر: ينشئ المالك حساب معلّم لأي بريد فورًا بلا كود دعوة (Phase 19).
+        (isOwner() && request.resource.data.role == 'teacher')
       );
       allow update: if request.auth != null && (
         (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student') ||

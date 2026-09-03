@@ -4,13 +4,14 @@ import { type FormEvent, useEffect, useState } from "react";
 import { collection, deleteDoc, doc, onSnapshot, query, where } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
 import { getFirebaseDb } from "@/utils/firebase";
-import { createStudentInvite, deleteStudentAccount, translateFirebaseError } from "@/utils/auth";
+import { createStudentAccountDirect, createStudentInvite, deleteStudentAccount, translateFirebaseError } from "@/utils/auth";
 import { createStudentDriveFolder, isGoogleDriveConfigured, requestGoogleDriveToken } from "@/utils/googleDrive";
 import StudentProfile from "@/components/StudentProfile";
 import type { StudentInviteDoc, UserDoc } from "@/types";
 
 interface StudentManagerProps {
   students: UserDoc[];
+  isOwner?: boolean;
   onAddSession: (student: UserDoc) => void;
   onAddQuiz: (student: UserDoc) => void;
 }
@@ -31,15 +32,17 @@ const buildInviteMailto = (email: string, name: string, code: string): string =>
   return `mailto:${email}?subject=${subject}&body=${body}`;
 };
 
-const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerProps) => {
+const StudentManager = ({ students, isOwner, onAddSession, onAddQuiz }: StudentManagerProps) => {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [parentEmail, setParentEmail] = useState("");
   const [gradeLevel, setGradeLevel] = useState("");
   const [createDriveFolder, setCreateDriveFolder] = useState(isGoogleDriveConfigured());
+  const [createDirect, setCreateDirect] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [generatedInvite, setGeneratedInvite] = useState<GeneratedInvite | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState("all");
@@ -75,20 +78,35 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setFeedback(null);
+    setSuccessMessage(null);
     setIsCreating(true);
 
     try {
       const token = createDriveFolder ? await requestGoogleDriveToken() : null;
       const driveFolderId = token ? await createStudentDriveFolder(token, displayName, gradeLevel) : undefined;
-      const invite = await createStudentInvite({
-        email,
-        displayName,
-        phone,
-        parentEmail: parentEmail || undefined,
-        gradeLevel: gradeLevel || undefined,
-        driveFolderId,
-      });
-      setGeneratedInvite({ email: invite.email, code: invite.code, displayName: invite.displayName });
+
+      if (isOwner && createDirect) {
+        await createStudentAccountDirect({
+          email,
+          displayName,
+          phone,
+          parentEmail: parentEmail || undefined,
+          gradeLevel: gradeLevel || undefined,
+          driveFolderId,
+        });
+        setSuccessMessage("تم إنشاء حساب الطالب مباشرةً وفعّلًا (اشتراك مميّز لسنة)، وأُرسل رابط تعيين كلمة المرور إلى بريده مباشرةً.");
+      } else {
+        const invite = await createStudentInvite({
+          email,
+          displayName,
+          phone,
+          parentEmail: parentEmail || undefined,
+          gradeLevel: gradeLevel || undefined,
+          driveFolderId,
+        });
+        setGeneratedInvite({ email: invite.email, code: invite.code, displayName: invite.displayName });
+      }
+
       setDisplayName("");
       setEmail("");
       setPhone("");
@@ -96,7 +114,7 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
       setGradeLevel("");
     } catch (err) {
       const message =
-        err instanceof FirebaseError ? translateFirebaseError(err.code) : "تعذر إنشاء دعوة التسجيل. حاول مرة أخرى.";
+        err instanceof FirebaseError ? translateFirebaseError(err.code) : "تعذر إنشاء حساب الطالب. حاول مرة أخرى.";
       setFeedback(message);
     } finally {
       setIsCreating(false);
@@ -199,15 +217,24 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
           </span>
         </label>
 
+        {isOwner && (
+          <label className="checkbox-field">
+            <input type="checkbox" checked={createDirect} onChange={(event) => setCreateDirect(event.target.checked)} />
+            <span>إنشاء الحساب مباشرة وتفعيله فورًا (تخطي رمز التسجيل) — للمالك فقط، ويمنح سنة اشتراك مميّز تلقائيًا</span>
+          </label>
+        )}
+
         <p className="quiz-hint">
-          سيتولّد رمز تسجيل فريد للطالب — يُكمل هو تسجيل حسابه بنفسه ويختار كلمة مروره الخاصة من
-          صفحة الدخول، فلا يعرف أحد غيره كلمة مروره الحقيقية.
+          {isOwner && createDirect
+            ? "سيُنشأ الحساب فورًا ونشطًا بالكامل، ويصل الطالب رابط Firebase الرسمي لتعيين كلمة مروره — لن تراها أنت إطلاقًا."
+            : "سيتولّد رمز تسجيل فريد للطالب — يُكمل هو تسجيل حسابه بنفسه ويختار كلمة مروره الخاصة من صفحة الدخول، فلا يعرف أحد غيره كلمة مروره الحقيقية."}
         </p>
 
         {feedback && <p className="auth-error">{feedback}</p>}
+        {successMessage && <p className="form-feedback">{successMessage}</p>}
 
         <button type="submit" className="primary-button" disabled={isCreating}>
-          {isCreating ? "جارٍ الإنشاء..." : "توليد رمز تسجيل للطالب"}
+          {isCreating ? "جارٍ الإنشاء..." : isOwner && createDirect ? "إنشاء الحساب مباشرة" : "توليد رمز تسجيل للطالب"}
         </button>
       </form>
 

@@ -298,7 +298,7 @@ const TeacherDashboardPage = () => {
 
         {workspace === "students" && <article className="panel panel-wide">
           <h2>إدارة الطلاب ({students.length})</h2>
-          <StudentManager students={students} onAddSession={openStudentSession} onAddQuiz={openStudentQuiz} />
+          <StudentManager students={students} isOwner={userDoc.isOwner} onAddSession={openStudentSession} onAddQuiz={openStudentQuiz} />
         </article>
         }
 
