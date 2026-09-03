@@ -19,10 +19,11 @@ import { useAuthUser } from "@/utils/useAuthUser";
 import QuizBuilder from "@/components/QuizBuilder";
 import StudentManager from "@/components/StudentManager";
 import SessionManager from "@/components/SessionManager";
+import TeacherInviteManager from "@/components/TeacherInviteManager";
 import type { SessionDoc, UserDoc } from "@/types";
 
 type SessionWithId = SessionDoc & { id: string };
-type Workspace = "overview" | "sessions" | "students" | "quiz";
+type Workspace = "overview" | "sessions" | "students" | "quiz" | "teachers";
 
 const TeacherDashboardPage = () => {
   const router = useRouter();
@@ -186,6 +187,9 @@ const TeacherDashboardPage = () => {
             <button type="button" className={workspace === "students" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("students")}>ملفات الطلاب</button>
             <button type="button" className={workspace === "sessions" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("sessions")}>الجلسات والفيديو</button>
             <button type="button" className={workspace === "quiz" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("quiz")}>بناء اختبار</button>
+            {userDoc.isOwner && (
+              <button type="button" className={workspace === "teachers" ? "primary-button" : "logout-button"} onClick={() => setWorkspace("teachers")}>إدارة المعلّمين</button>
+            )}
           </div>
         </article>
 
@@ -297,6 +301,12 @@ const TeacherDashboardPage = () => {
         {workspace === "quiz" && <article className="panel panel-wide">
           <h2>بناء اختبار جديد</h2>
           <QuizBuilder sessions={sessions.map(({ id, videoTitle }) => ({ id, videoTitle }))} students={students} assignedStudentId={quizStudentId} />
+        </article>
+        }
+
+        {workspace === "teachers" && userDoc.isOwner && <article className="panel panel-wide">
+          <h2>إدارة المعلّمين (المالك فقط)</h2>
+          <TeacherInviteManager />
         </article>
         }
       </section>

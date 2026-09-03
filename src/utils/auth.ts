@@ -1,12 +1,13 @@
 import {
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut,
   updatePassword,
 } from "firebase/auth";
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/utils/firebase";
-import type { StudentCredentialDoc, StudentInviteDoc, UserDoc, UserRole } from "@/types";
+import type { StudentCredentialDoc, StudentInviteDoc, TeacherInviteDoc, UserDoc, UserRole } from "@/types";
 
 interface RegisterInput {
   email: string;
@@ -15,8 +16,12 @@ interface RegisterInput {
   role: UserRole;
   phone?: string;
   parentEmail?: string;
+  teacherInviteCode?: string;
 }
 
+// تسجيل معلّم يمرّ إلزاميًا ببوابة مكافحة التسلل: كود دعوة صالح صادر عن المالك (isOwner) ومطابق
+// للبريد المدخل، وإلا رفضت قواعد Firestore عملية إنشاء المستند أصلًا (التحقق هنا فقط لرسالة خطأ
+// واضحة قبل إنشاء حساب Firebase Auth بلا داعٍ).
 export const registerUser = async ({
   email,
   password,
@@ -24,7 +29,23 @@ export const registerUser = async ({
   role,
   phone,
   parentEmail,
+  teacherInviteCode,
 }: RegisterInput): Promise<UserDoc> => {
+  const db = getFirebaseDb();
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedInviteCode = teacherInviteCode?.trim().toUpperCase();
+
+  if (role === "teacher") {
+    if (!normalizedInviteCode) throw new Error("يلزم كود دعوة معلّم صالح لإتمام التسجيل.");
+
+    const inviteSnapshot = await getDoc(doc(db, "teacherInvites", normalizedInviteCode));
+    if (!inviteSnapshot.exists()) throw new Error("كود دعوة المعلّم غير صحيح.");
+
+    const invite = inviteSnapshot.data() as TeacherInviteDoc;
+    if (invite.used) throw new Error("تم استخدام كود الدعوة هذا مسبقًا.");
+    if (invite.email !== normalizedEmail) throw new Error("البريد الإلكتروني لا يطابق كود الدعوة المدخل.");
+  }
+
   const credential = await createUserWithEmailAndPassword(getFirebaseAuth(), email, password);
   const userDoc: UserDoc = {
     uid: credential.user.uid,
@@ -34,11 +55,45 @@ export const registerUser = async ({
     createdAt: Date.now(),
     ...(phone ? { phone } : {}),
     ...(parentEmail ? { parentEmail } : {}),
+    ...(role === "teacher" && normalizedInviteCode ? { teacherInviteCode: normalizedInviteCode } : {}),
   };
 
-  await setDoc(doc(getFirebaseDb(), "users", credential.user.uid), userDoc);
+  await setDoc(doc(db, "users", credential.user.uid), userDoc);
+
+  if (role === "teacher" && normalizedInviteCode) {
+    await updateDoc(doc(db, "teacherInvites", normalizedInviteCode), { used: true });
+  }
 
   return userDoc;
+};
+
+// إجراء المالك حصرًا: يولّد كود دعوة معلّم من 8 محارف ويربطه بالبريد المحدد، بانتظار أن يُكمل ذلك
+// الشخص تسجيله بنفسه عبر تبويب «تسجيل معلّم» مستخدمًا هذا الكود.
+export const createTeacherInvite = async (email: string): Promise<TeacherInviteDoc> => {
+  const db = getFirebaseDb();
+  let code = randomFromCharset(CODE_CHARS, 8);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existing = await getDoc(doc(db, "teacherInvites", code));
+    if (!existing.exists()) break;
+    code = randomFromCharset(CODE_CHARS, 8);
+  }
+
+  const invite: TeacherInviteDoc = {
+    code,
+    email: email.trim().toLowerCase(),
+    createdAt: Date.now(),
+    used: false,
+  };
+
+  await setDoc(doc(db, "teacherInvites", code), invite);
+  return invite;
+};
+
+// يرسل رابط إعادة تعيين كلمة المرور عبر بريد Firebase الرسمي — يعمل لأي حساب (معلّم أو طالب) طالما
+// بريده صحيح ومسجّل، بلا حاجة لأي خادم إضافي.
+export const requestPasswordReset = async (email: string): Promise<void> => {
+  await sendPasswordResetEmail(getFirebaseAuth(), email.trim());
 };
 
 export const loginUser = async (email: string, password: string): Promise<UserDoc> => {

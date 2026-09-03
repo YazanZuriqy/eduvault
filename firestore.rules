@@ -6,12 +6,23 @@ service cloud.firestore {
       return request.auth != null &&
         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'teacher';
     }
+    // المالك معلّم موسوم يدويًا بـ isOwner، هو الوحيد المخوّل بتوليد أكواد دعوة معلّمين جدد.
+    function isOwner() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isOwner == true;
+    }
 
     match /users/{userId} {
       allow read: if request.auth != null && (request.auth.uid == userId || isTeacher());
       allow create: if request.auth != null && (
-        request.auth.uid == userId ||
-        (isTeacher() && request.resource.data.role == 'student')
+        (isTeacher() && request.resource.data.role == 'student') ||
+        (request.auth.uid == userId && request.resource.data.role == 'student') ||
+        // معلّم جديد: يُشترط كود دعوة صالح وغير مستخدم مرتبط بالبريد نفسه (بوابة مكافحة التسلل).
+        (request.auth.uid == userId && request.resource.data.role == 'teacher' &&
+          'teacherInviteCode' in request.resource.data &&
+          exists(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)) &&
+          get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)).data.email == request.resource.data.email &&
+          get(/databases/$(database)/documents/teacherInvites/$(request.resource.data.teacherInviteCode)).data.used == false)
       );
       allow update: if request.auth != null && (
         (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student') ||
@@ -39,6 +50,16 @@ service cloud.firestore {
       allow list: if isTeacher();
       allow create, delete: if isTeacher();
       allow update: if isTeacher() || (
+        request.auth != null && request.auth.token.email == resource.data.email
+      );
+    }
+    match /teacherInvites/{code} {
+      // نفس نمط studentInvites لكن مقصور على المالك (isOwner) بدل أي معلّم — بوابة مكافحة التسلل
+      // التي تمنع أي شخص من تسجيل نفسه كمعلّم دون كود صادر عن المالك صراحةً.
+      allow get: if true;
+      allow list: if isOwner();
+      allow create, delete: if isOwner();
+      allow update: if isOwner() || (
         request.auth != null && request.auth.token.email == resource.data.email
       );
     }

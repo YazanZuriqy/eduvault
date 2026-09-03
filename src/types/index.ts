@@ -9,6 +9,11 @@ export interface UserDoc {
   driveFolderId?: string;
   studentCode?: string;
   activationPending?: boolean;
+  // مالك الحساب الأول فقط يحمل هذا الحقل، يُفعّل يدويًا من وحدة تحكم Firebase مباشرةً
+  // (لا يوجد دوال سحابية لضبطه تلقائيًا على خطة Spark)، وهو من يولّد أكواد المعلّمين الجدد.
+  isOwner?: boolean;
+  // كود دعوة المعلّم الذي استُخدم لإكمال التسجيل (يُحفظ كسجلّ تاريخي، لا يُعاد استخدامه لاحقًا).
+  teacherInviteCode?: string;
   // بصمة الجهاز: primaryDeviceId هو الجهاز المعتمد، secondaryDeviceId جهاز إضافي مسموح به.
   biometricLocked?: boolean;
   primaryDeviceId?: string | null;
@@ -26,6 +31,15 @@ export interface StudentCredentialDoc {
   studentId: string;
   activationCode: string;
   createdAt: number;
+}
+
+// دعوة انضمام معلّم جديد: ينشئها المالك (isOwner) برمز (code = معرّف المستند)، ويمنع هذا
+// التسجيل الذاتي المفتوح لأي شخص كمعلّم من التحول إلى بوابة خلفية للتطفّل.
+export interface TeacherInviteDoc {
+  code: string;
+  email: string;
+  createdAt: number;
+  used: boolean;
 }
 
 // دعوة تسجيل طالب: ينشئها المعلّم برمز (code = معرّف المستند)، ويُكملها الطالب بنفسه عبر

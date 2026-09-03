@@ -8,6 +8,7 @@ import {
   loginUser,
   registerStudentWithInvite,
   registerUser,
+  requestPasswordReset,
   translateFirebaseError,
 } from "@/utils/auth";
 import { useAuthUser } from "@/utils/useAuthUser";
@@ -27,6 +28,12 @@ const AuthPage = () => {
   const [pendingStudent, setPendingStudent] = useState<UserDoc | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [teacherInviteCode, setTeacherInviteCode] = useState("");
+
+  const [isResetOpen, setIsResetOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [isSendingReset, setIsSendingReset] = useState(false);
 
   const [srCode, setSrCode] = useState("");
   const [srName, setSrName] = useState("");
@@ -56,7 +63,7 @@ const AuthPage = () => {
       const resultDoc =
         mode === "login"
           ? await loginUser(email, password)
-          : await registerUser({ email, password, displayName, role: "teacher" });
+          : await registerUser({ email, password, displayName, role: "teacher", teacherInviteCode });
 
       if (mode === "login" && resultDoc.role === "student" && resultDoc.activationPending) {
         setPendingStudent(resultDoc);
@@ -118,6 +125,25 @@ const AuthPage = () => {
       setError(err instanceof Error ? err.message : "تعذر تفعيل الحساب.");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // إشعار ثنائي اللغة (عربي/إنجليزي) فور نجاح إرسال رابط إعادة التعيين، مطابقًا لطلب المهمة.
+  const handleForgotPassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setResetMessage(null);
+    setIsSendingReset(true);
+    try {
+      await requestPasswordReset(resetEmail);
+      setResetMessage("تم إرسال رابط إعادة التعيين إلى بريدك. / Password reset link sent to your email.");
+    } catch (err) {
+      setResetMessage(
+        err instanceof FirebaseError
+          ? translateFirebaseError(err.code)
+          : "تعذر إرسال رابط إعادة التعيين. / Could not send the reset link.",
+      );
+    } finally {
+      setIsSendingReset(false);
     }
   };
 
@@ -229,10 +255,31 @@ const AuthPage = () => {
               />
             </label>
 
+            {mode === "login" && (
+              <button type="button" className="forgot-password-link" onClick={() => { setIsResetOpen(true); setResetEmail(email); setResetMessage(null); }}>
+                نسيت كلمة المرور؟
+              </button>
+            )}
+
+            {mode === "register" && (
+              <label className="field">
+                <span>كود دعوة المعلّم</span>
+                <input
+                  required
+                  type="text"
+                  className="code-input"
+                  value={teacherInviteCode}
+                  onChange={(event) => setTeacherInviteCode(event.target.value.toUpperCase())}
+                  placeholder="مثال: 7K3PXQ9M"
+                  dir="ltr"
+                />
+              </label>
+            )}
+
             {mode === "register" && (
               <p className="quiz-hint">
-                هذا التسجيل مخصص للمعلّمين فقط. حسابات الطلاب يبدأها المعلّم برمز من لوحته، ثم يُكمل
-                الطالب تسجيله بنفسه من تبويب «تسجيل طالب».
+                هذا التسجيل مخصص للمعلّمين فقط، ويلزم كود دعوة صادر عن مالك المنصة. حسابات الطلاب
+                يبدأها المعلّم برمز من لوحته، ثم يُكمل الطالب تسجيله بنفسه من تبويب «تسجيل طالب».
               </p>
             )}
 
@@ -293,6 +340,27 @@ const AuthPage = () => {
           </form>
         )}
       </div>
+
+      {isResetOpen && (
+        <div className="quiz-modal-backdrop" role="dialog" aria-modal="true">
+          <div className="quiz-modal reset-modal">
+            <header className="quiz-modal-header">
+              <h2>إعادة تعيين كلمة المرور</h2>
+              <button type="button" className="logout-button" onClick={() => setIsResetOpen(false)}>إغلاق</button>
+            </header>
+            <form className="auth-form" onSubmit={(event) => void handleForgotPassword(event)}>
+              <label className="field">
+                <span>البريد الإلكتروني / Email</span>
+                <input required type="email" value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} placeholder="name@example.com" dir="ltr" />
+              </label>
+              {resetMessage && <p className="form-feedback">{resetMessage}</p>}
+              <button className="auth-submit" type="submit" disabled={isSendingReset}>
+                {isSendingReset ? "جارٍ الإرسال... / Sending..." : "إرسال رابط إعادة التعيين / Send reset link"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 };
