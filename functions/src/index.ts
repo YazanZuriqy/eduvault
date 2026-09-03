@@ -11,6 +11,8 @@ import {
 } from "./driveClient";
 import { gmailAppPassword, gmailSenderEmail, sendStudentInviteEmail } from "./mailer";
 
+export { createCheckoutSession, handleStripeWebhook, cancelSubscription } from "./stripeWebhook";
+
 initializeApp();
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
 

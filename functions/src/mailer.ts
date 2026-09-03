@@ -27,3 +27,12 @@ export const sendStudentInviteEmail = async (to: string, studentName: string, co
     text: `مرحبًا ${studentName}،\n\nرمز تسجيل حسابك في منصة EduVault هو: ${code}\n\nافتح صفحة تسجيل الدخول، اختر تبويب "تسجيل طالب"، وأكمل بياناتك بهذا الرمز لإنشاء كلمة مرورك الخاصة.\n\nبالتوفيق!`,
   });
 };
+
+export const sendTeacherInviteEmail = async (to: string, code: string): Promise<void> => {
+  await getTransporter().sendMail({
+    from: gmailSenderEmail.value(),
+    to,
+    subject: "كود دعوة معلّم في EduVault",
+    text: `مرحبًا،\n\nتم تفعيل اشتراكك بنجاح. كود دعوتك لتسجيل حساب معلّم في منصة EduVault هو: ${code}\n\nافتح صفحة تسجيل الدخول، اختر تبويب "تسجيل معلّم"، وأكمل التسجيل بهذا الكود.\n\nبالتوفيق!`,
+  });
+};

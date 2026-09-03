@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
@@ -158,6 +159,7 @@ const StudentDashboardPage = () => {
           <h1>مرحبًا، {userDoc.displayName}</h1>
         </div>
         <div className="dashboard-header-actions">
+          <Link href="/checkout" className="logout-button">الاشتراك المميّز</Link>
           <button type="button" className="logout-button" onClick={() => setIsSettingsOpen((previous) => !previous)}>
             إعدادات الحساب
           </button>
@@ -173,6 +175,16 @@ const StudentDashboardPage = () => {
           </button>
         </div>
       </header>
+
+      {/* شارة حالة الاشتراك المميّز: تُعرض فقط للطلاب الذين لديهم اشتراك فعلي وغير منتهٍ (studentPremiumExpiresAt)،
+          وليس لكل الطلاب بشكل ثابت، كي لا تُظهر حالة دفع وهمية لمن لم يشترك فعلًا. */}
+      {userDoc.studentPremiumExpiresAt && userDoc.studentPremiumExpiresAt > Date.now() && (
+        <div className="premium-status-card bg-[var(--ink)] text-[var(--paper)] backdrop-blur-md border border-lime-400/30 shadow-lg px-4 py-3 rounded-xl mb-6">
+          <p><strong>نوع الباقة الحالية:</strong> باقة التميّز السنوية للرياضيات 🎓</p>
+          <p><strong>قيمة الاشتراك:</strong> 20 دينار أردني / سنوياً 🇯🇴</p>
+          <p><strong>حالة الحساب:</strong> حساب نَشِط ومحمّي بالبصمة 🔐</p>
+        </div>
+      )}
 
       {isSettingsOpen && (
         <section className="panel account-settings-panel">

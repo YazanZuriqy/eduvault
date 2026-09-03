@@ -1,15 +1,16 @@
-// Boilerplate/architecture only — NOT wired to a real Stripe account. No API keys live here or
-// anywhere client-side; Stripe's secret key can only ever be used from a trusted server (a Cloud
-// Function), never from this static frontend. This file exists so a future billing feature has a
-// clean, typed seam to build against instead of scattering ad-hoc fetch calls later.
+// Client seam for Stripe Checkout. The actual money-moving logic (secret key, webhook signature
+// verification) lives only in functions/src/stripeWebhook.ts — this file just knows how to call
+// those Cloud Function URLs and never touches a secret key itself.
 //
-// To actually activate payments later:
-//   1. Create a Stripe account and put the PUBLISHABLE key (safe client-side) in
-//      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (.env.local), never the secret key.
-//   2. Add a Cloud Function (functions/src/, alongside driveClient.ts/mailer.ts) that uses the
-//      Stripe SECRET key (via `defineSecret`, set through `firebase functions:secrets:set`, never
-//      pasted in chat/committed) to create Checkout Sessions and verify webhook signatures.
-//   3. Point `createCheckoutSession` below at that Cloud Function's HTTPS URL.
+// To actually go live:
+//   1. Create a real Stripe account, confirm it can settle in JOD (Stripe's supported-currency and
+//      supported-country list should be checked directly in the Stripe Dashboard for this specific
+//      account — don't assume).
+//   2. Set NEXT_PUBLIC_FUNCTIONS_BASE_URL (.env.local) to the deployed functions region+project URL.
+//   3. Set the two Cloud Function secrets yourself via `firebase functions:secrets:set
+//      STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` (typed directly into your own terminal — never
+//      paste them in chat), then `firebase deploy --only functions`.
+//   4. Register the deployed handleStripeWebhook URL as a webhook endpoint in the Stripe Dashboard.
 
 export type SubscriptionPlanId = "student_premium" | "teacher_monthly_license";
 
@@ -17,32 +18,40 @@ export interface PaymentPlan {
   id: SubscriptionPlanId;
   name: string;
   description: string;
-  priceUsd: number;
-  interval: "month" | "one_time";
+  price: number;
+  currency: "JOD";
+  billing: "recurring_monthly" | "one_time_annual";
 }
 
-// Placeholder catalogue for the two billing models mentioned in the spec. Prices are illustrative
-// only — replace once real Stripe Price IDs exist.
 export const PAYMENT_PLANS: PaymentPlan[] = [
   {
-    id: "student_premium",
-    name: "Student Premium Unlock",
-    description: "فتح ميزات إضافية لحساب الطالب (مثل تنزيلات إضافية أو محتوى موسّع).",
-    priceUsd: 4.99,
-    interval: "one_time",
+    id: "teacher_monthly_license",
+    name: "باقة المعلّم الشهرية",
+    description: "تفعيل صلاحيات المعلّم الكاملة على المنصة، بتجديد شهري تلقائي.",
+    price: 10,
+    currency: "JOD",
+    billing: "recurring_monthly",
   },
   {
-    id: "teacher_monthly_license",
-    name: "Teacher Monthly License",
-    description: "اشتراك شهري لتفعيل صلاحيات المعلّم الكاملة على المنصة.",
-    priceUsd: 19.99,
-    interval: "month",
+    id: "student_premium",
+    name: "باقة التميّز السنوية للطالب",
+    description: "دفعة واحدة تمنح الطالب سنة كاملة من الوصول المميّز، دون أي تجديد تلقائي.",
+    price: 20,
+    currency: "JOD",
+    billing: "one_time_annual",
   },
 ];
 
+export const getPaymentPlan = (planId: SubscriptionPlanId): PaymentPlan =>
+  PAYMENT_PLANS.find((plan) => plan.id === planId)!;
+
 export interface CheckoutSessionRequest {
   planId: SubscriptionPlanId;
-  customerEmail: string;
+  email: string;
+  displayName: string;
+  phone?: string;
+  parentEmail?: string;
+  gradeLevel?: string;
   successUrl: string;
   cancelUrl: string;
 }
@@ -51,15 +60,37 @@ export interface CheckoutSessionResult {
   url: string;
 }
 
-export const isPaymentGatewayConfigured = (): boolean => Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
+const getFunctionsBaseUrl = (): string | undefined => process.env.NEXT_PUBLIC_FUNCTIONS_BASE_URL;
 
-// Deliberately not implemented — creating a real Checkout Session requires the Stripe secret key,
-// which must live only in a Cloud Function. Calling this today throws instead of silently pretending
-// to charge anyone.
-export const createCheckoutSession = async (
-  _request: CheckoutSessionRequest,
-): Promise<CheckoutSessionResult> => {
-  throw new Error(
-    "Payment gateway not configured yet: this requires a Cloud Function backed by a real Stripe account.",
-  );
+export const isPaymentGatewayConfigured = (): boolean => Boolean(getFunctionsBaseUrl());
+
+// يفتح جلسة دفع Stripe حقيقية عبر الدالة السحابية createCheckoutSession، ثم يُحوَّل المستخدم إلى
+// رابط الدفع المُعاد. يرمي خطأً واضحًا بدل التعليق أو التظاهر بالنجاح إن لم يكن الخادم مُهيّأ بعد.
+export const createCheckoutSession = async (request: CheckoutSessionRequest): Promise<CheckoutSessionResult> => {
+  const baseUrl = getFunctionsBaseUrl();
+  if (!baseUrl) throw new Error("بوابة الدفع غير مُفعّلة بعد. تواصل مع الدعم.");
+
+  const response = await fetch(`${baseUrl}/createCheckoutSession`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+
+  if (!response.ok) throw new Error("تعذر بدء عملية الدفع. حاول مرة أخرى لاحقًا.");
+  return (await response.json()) as CheckoutSessionResult;
+};
+
+// يطلب من Stripe وقف التجديد التلقائي المستقبلي فقط (cancel_at_period_end)، مع إبقاء الوصول ساريًا
+// حتى نهاية الفترة المدفوعة الحالية.
+export const requestSubscriptionCancellation = async (subscriptionId: string): Promise<void> => {
+  const baseUrl = getFunctionsBaseUrl();
+  if (!baseUrl) throw new Error("بوابة الدفع غير مُفعّلة بعد. تواصل مع الدعم.");
+
+  const response = await fetch(`${baseUrl}/cancelSubscription`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ subscriptionId }),
+  });
+
+  if (!response.ok) throw new Error("تعذر إلغاء الاشتراك. حاول مرة أخرى لاحقًا.");
 };

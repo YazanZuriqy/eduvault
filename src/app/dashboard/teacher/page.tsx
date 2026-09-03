@@ -16,6 +16,7 @@ import {
 import { getFirebaseDb } from "@/utils/firebase";
 import { logoutUser } from "@/utils/auth";
 import { useAuthUser } from "@/utils/useAuthUser";
+import Link from "next/link";
 import QuizBuilder from "@/components/QuizBuilder";
 import StudentManager from "@/components/StudentManager";
 import SessionManager from "@/components/SessionManager";
@@ -164,16 +165,19 @@ const TeacherDashboardPage = () => {
           <p className="dashboard-eyebrow">TEACHER DASHBOARD</p>
           <h1>مرحبًا، {userDoc.displayName}</h1>
         </div>
-        <button
-          type="button"
-          className="logout-button"
-          onClick={async () => {
-            await logoutUser();
-            router.replace("/auth");
-          }}
-        >
-          تسجيل الخروج
-        </button>
+        <div className="dashboard-header-actions">
+          <Link href="/checkout" className="logout-button">الاشتراك المميّز</Link>
+          <button
+            type="button"
+            className="logout-button"
+            onClick={async () => {
+              await logoutUser();
+              router.replace("/auth");
+            }}
+          >
+            تسجيل الخروج
+          </button>
+        </div>
       </header>
 
       <section className="dashboard-grid">

@@ -34,6 +34,7 @@ export const registerUser = async ({
   const db = getFirebaseDb();
   const normalizedEmail = email.trim().toLowerCase();
   const normalizedInviteCode = teacherInviteCode?.trim().toUpperCase();
+  let invite: TeacherInviteDoc | undefined;
 
   if (role === "teacher") {
     if (!normalizedInviteCode) throw new Error("يلزم كود دعوة معلّم صالح لإتمام التسجيل.");
@@ -41,7 +42,7 @@ export const registerUser = async ({
     const inviteSnapshot = await getDoc(doc(db, "teacherInvites", normalizedInviteCode));
     if (!inviteSnapshot.exists()) throw new Error("كود دعوة المعلّم غير صحيح.");
 
-    const invite = inviteSnapshot.data() as TeacherInviteDoc;
+    invite = inviteSnapshot.data() as TeacherInviteDoc;
     if (invite.used) throw new Error("تم استخدام كود الدعوة هذا مسبقًا.");
     if (invite.email !== normalizedEmail) throw new Error("البريد الإلكتروني لا يطابق كود الدعوة المدخل.");
   }
@@ -56,6 +57,8 @@ export const registerUser = async ({
     ...(phone ? { phone } : {}),
     ...(parentEmail ? { parentEmail } : {}),
     ...(role === "teacher" && normalizedInviteCode ? { teacherInviteCode: normalizedInviteCode } : {}),
+    ...(invite?.stripeSubscriptionId ? { stripeSubscriptionId: invite.stripeSubscriptionId } : {}),
+    ...(invite?.stripeCustomerId ? { stripeCustomerId: invite.stripeCustomerId } : {}),
   };
 
   await setDoc(doc(db, "users", credential.user.uid), userDoc);
@@ -280,6 +283,7 @@ export const registerStudentWithInvite = async (input: RegisterStudentInput): Pr
     ...(parentEmail ? { parentEmail } : {}),
     ...(invite.gradeLevel ? { gradeLevel: invite.gradeLevel } : {}),
     ...(invite.driveFolderId ? { driveFolderId: invite.driveFolderId } : {}),
+    ...(invite.premiumExpiresAt ? { studentPremiumActive: true, studentPremiumExpiresAt: invite.premiumExpiresAt } : {}),
   };
 
   await setDoc(doc(db, "users", credential.user.uid), userDoc);

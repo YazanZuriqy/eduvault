@@ -14,6 +14,12 @@ export interface UserDoc {
   isOwner?: boolean;
   // كود دعوة المعلّم الذي استُخدم لإكمال التسجيل (يُحفظ كسجلّ تاريخي، لا يُعاد استخدامه لاحقًا).
   teacherInviteCode?: string;
+  // مراجع اشتراك Stripe المنسوخة من دعوة المعلّم عند التسجيل، تُستعمل لاحقًا لطلب إلغاء التجديد من صفحة الدفع.
+  stripeSubscriptionId?: string;
+  stripeCustomerId?: string;
+  // باقة الطالب المميّزة (دفعة واحدة غير متجددة لمدة سنة)، تُعرض فقط طالما studentPremiumExpiresAt في المستقبل.
+  studentPremiumActive?: boolean;
+  studentPremiumExpiresAt?: number;
   // بصمة الجهاز: primaryDeviceId هو الجهاز المعتمد، secondaryDeviceId جهاز إضافي مسموح به.
   biometricLocked?: boolean;
   primaryDeviceId?: string | null;
@@ -40,6 +46,9 @@ export interface TeacherInviteDoc {
   email: string;
   createdAt: number;
   used: boolean;
+  // تُملأ فقط عندما يأتي الكود من ويب هوك Stripe (اشتراك معلّم مدفوع) لا من لوحة المالك اليدوية.
+  stripeSubscriptionId?: string;
+  stripeCustomerId?: string;
 }
 
 // دعوة تسجيل طالب: ينشئها المعلّم برمز (code = معرّف المستند)، ويُكملها الطالب بنفسه عبر
@@ -54,6 +63,8 @@ export interface StudentInviteDoc {
   driveFolderId?: string;
   createdAt: number;
   used: boolean;
+  // تُملأ فقط عندما تأتي الدعوة من دفعة باقة الطالب المميّزة عبر Stripe.
+  premiumExpiresAt?: number;
 }
 
 export interface SessionDoc {
