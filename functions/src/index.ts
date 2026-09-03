@@ -9,6 +9,7 @@ import {
   createStudentFolder,
   getDriveFileStream,
 } from "./driveClient";
+import { gmailAppPassword, gmailSenderEmail, sendStudentInviteEmail } from "./mailer";
 
 initializeApp();
 setGlobalOptions({ region: "us-central1", maxInstances: 10 });
@@ -32,6 +33,24 @@ export const onStudentAccountCreated = onDocumentCreated(
       await snapshot.ref.update({ driveFolderId: folderId });
     } catch (error) {
       console.error(`Failed to auto-create Drive folder for student ${event.params.uid}`, error);
+    }
+  },
+);
+
+// Fires when a teacher creates a studentInvites/{code} doc (StudentManager.tsx -> createStudentInvite).
+// Sends the registration code straight to the student's email — the client-side mailto link keeps
+// working as an immediate fallback regardless of whether this is deployed.
+export const onStudentInviteCreated = onDocumentCreated(
+  { document: "studentInvites/{code}", secrets: [gmailSenderEmail, gmailAppPassword] },
+  async (event) => {
+    const snapshot = event.data;
+    if (!snapshot) return;
+
+    const invite = snapshot.data();
+    try {
+      await sendStudentInviteEmail(invite.email, invite.displayName, invite.code);
+    } catch (error) {
+      console.error(`Failed to email invite code ${event.params.code}`, error);
     }
   },
 );

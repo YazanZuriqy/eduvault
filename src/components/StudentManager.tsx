@@ -1,11 +1,13 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
+import { collection, deleteDoc, doc, onSnapshot, query, where } from "firebase/firestore";
 import { FirebaseError } from "firebase/app";
-import { createStudentAccount, deleteStudentAccount, generateStudentPassword, translateFirebaseError } from "@/utils/auth";
+import { getFirebaseDb } from "@/utils/firebase";
+import { createStudentInvite, deleteStudentAccount, translateFirebaseError } from "@/utils/auth";
 import { createStudentDriveFolder, isGoogleDriveConfigured, requestGoogleDriveToken } from "@/utils/googleDrive";
 import StudentProfile from "@/components/StudentProfile";
-import type { UserDoc } from "@/types";
+import type { StudentInviteDoc, UserDoc } from "@/types";
 
 interface StudentManagerProps {
   students: UserDoc[];
@@ -13,11 +15,21 @@ interface StudentManagerProps {
   onAddQuiz: (student: UserDoc) => void;
 }
 
-interface GeneratedCredentials {
+interface GeneratedInvite {
   email: string;
-  password: string;
-  studentCode: string;
+  code: string;
+  displayName: string;
 }
+
+// رابط بريد جاهز (mailto) يفتح تطبيق بريد المعلّم نفسه برسالة معبّأة مسبقًا — يعمل فورًا بلا أي
+// خادم أو مفاتيح API، بانتظار تفعيل الإرسال التلقائي عبر دالة سحابية لاحقًا.
+const buildInviteMailto = (email: string, name: string, code: string): string => {
+  const subject = encodeURIComponent("رمز تسجيل حسابك في EduVault");
+  const body = encodeURIComponent(
+    `مرحبًا ${name}،\n\nرمز تسجيل حسابك في منصة EduVault هو: ${code}\n\nافتح صفحة تسجيل الدخول، اختر تبويب "تسجيل طالب"، وأكمل بياناتك بهذا الرمز لإنشاء كلمة مرورك الخاصة.\n\nبالتوفيق!`,
+  );
+  return `mailto:${email}?subject=${subject}&body=${body}`;
+};
 
 const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerProps) => {
   const [displayName, setDisplayName] = useState("");
@@ -28,17 +40,37 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
   const [createDriveFolder, setCreateDriveFolder] = useState(isGoogleDriveConfigured());
   const [isCreating, setIsCreating] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
-  const [generatedCredentials, setGeneratedCredentials] = useState<GeneratedCredentials | null>(null);
+  const [generatedInvite, setGeneratedInvite] = useState<GeneratedInvite | null>(null);
   const [deletingUid, setDeletingUid] = useState<string | null>(null);
   const [gradeFilter, setGradeFilter] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<UserDoc | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<StudentInviteDoc[]>([]);
   const gradeLevels = [...new Set(students.map((student) => student.gradeLevel).filter(Boolean))] as string[];
-  const visibleStudents = gradeFilter === "all" ? students : students.filter((student) => student.gradeLevel === gradeFilter);
+  const searchNeedle = searchTerm.trim().toLowerCase();
+  const visibleStudents = students
+    .filter((student) => gradeFilter === "all" || student.gradeLevel === gradeFilter)
+    .filter(
+      (student) =>
+        !searchNeedle ||
+        student.displayName.toLowerCase().includes(searchNeedle) ||
+        student.email.toLowerCase().includes(searchNeedle),
+    );
 
   useEffect(() => {
     if (!selectedStudent) return;
     setSelectedStudent(students.find((student) => student.uid === selectedStudent.uid) ?? null);
   }, [students, selectedStudent]);
+
+  useEffect(() => {
+    const invitesQuery = query(collection(getFirebaseDb(), "studentInvites"), where("used", "==", false));
+    const unsubscribe = onSnapshot(invitesQuery, (snapshot) => {
+      const invites = snapshot.docs.map((entry) => entry.data() as StudentInviteDoc);
+      invites.sort((a, b) => b.createdAt - a.createdAt);
+      setPendingInvites(invites);
+    });
+    return unsubscribe;
+  }, []);
 
   const handleCreate = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,19 +78,17 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
     setIsCreating(true);
 
     try {
-      const password = generateStudentPassword();
       const token = createDriveFolder ? await requestGoogleDriveToken() : null;
       const driveFolderId = token ? await createStudentDriveFolder(token, displayName, gradeLevel) : undefined;
-      const created = await createStudentAccount({
+      const invite = await createStudentInvite({
         email,
-        password,
         displayName,
         phone,
         parentEmail: parentEmail || undefined,
         gradeLevel: gradeLevel || undefined,
         driveFolderId,
       });
-      setGeneratedCredentials({ email, password, studentCode: created.studentCode ?? "—" });
+      setGeneratedInvite({ email: invite.email, code: invite.code, displayName: invite.displayName });
       setDisplayName("");
       setEmail("");
       setPhone("");
@@ -66,11 +96,16 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
       setGradeLevel("");
     } catch (err) {
       const message =
-        err instanceof FirebaseError ? translateFirebaseError(err.code) : "تعذر إنشاء حساب الطالب. حاول مرة أخرى.";
+        err instanceof FirebaseError ? translateFirebaseError(err.code) : "تعذر إنشاء دعوة التسجيل. حاول مرة أخرى.";
       setFeedback(message);
     } finally {
       setIsCreating(false);
     }
+  };
+
+  const handleDeleteInvite = async (code: string) => {
+    if (!window.confirm("حذف دعوة التسجيل هذه؟ سيحتاج الطالب رمزًا جديدًا للتسجيل.")) return;
+    await deleteDoc(doc(getFirebaseDb(), "studentInvites", code));
   };
 
   const handleDelete = async (studentUid: string, studentName: string) => {
@@ -165,54 +200,68 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
         </label>
 
         <p className="quiz-hint">
-          سيتم توليد كلمة مرور عشوائية آمنة للطالب تلقائيًا عند الإنشاء — لا يختارها الطالب بنفسه، ما يمنع
-          تسجيل حسابات عشوائية.
+          سيتولّد رمز تسجيل فريد للطالب — يُكمل هو تسجيل حسابه بنفسه ويختار كلمة مروره الخاصة من
+          صفحة الدخول، فلا يعرف أحد غيره كلمة مروره الحقيقية.
         </p>
 
         {feedback && <p className="auth-error">{feedback}</p>}
 
         <button type="submit" className="primary-button" disabled={isCreating}>
-          {isCreating ? "جارٍ الإنشاء..." : "إنشاء حساب الطالب"}
+          {isCreating ? "جارٍ الإنشاء..." : "توليد رمز تسجيل للطالب"}
         </button>
       </form>
 
-      {generatedCredentials && (
+      {generatedInvite && (
         <div className="generated-credentials">
-          <p>تم إنشاء الحساب بنجاح. احفظ البيانات الآن قبل الإغلاق — لن تظهر مرة أخرى:</p>
+          <p>تم توليد رمز التسجيل بنجاح. أرسله للطالب ليكمل تسجيله بنفسه:</p>
           <div className="credential-row">
             <span>البريد:</span>
-            <code dir="ltr">{generatedCredentials.email}</code>
+            <code dir="ltr">{generatedInvite.email}</code>
           </div>
           <div className="credential-row">
-            <span>كلمة المرور المؤقتة:</span>
-            <code dir="ltr">{generatedCredentials.password}</code>
-            <button
-              type="button"
-              className="logout-button"
-              onClick={() => void navigator.clipboard.writeText(generatedCredentials.password)}
-            >
+            <span>رمز التسجيل:</span>
+            <code dir="ltr">{generatedInvite.code}</code>
+            <button type="button" className="logout-button" onClick={() => void navigator.clipboard.writeText(generatedInvite.code)}>
               نسخ
             </button>
+            <a className="logout-button" href={buildInviteMailto(generatedInvite.email, generatedInvite.displayName, generatedInvite.code)}>
+              إرسال بالبريد
+            </a>
           </div>
-          <div className="credential-row">
-            <span>رمز الطالب:</span>
-            <code dir="ltr">{generatedCredentials.studentCode}</code>
-            <button
-              type="button"
-              className="logout-button"
-              onClick={() => void navigator.clipboard.writeText(generatedCredentials.studentCode)}
-            >
-              نسخ
-            </button>
-          </div>
-          <button type="button" className="logout-button" onClick={() => setGeneratedCredentials(null)}>
+          <button type="button" className="logout-button" onClick={() => setGeneratedInvite(null)}>
             إغلاق
           </button>
         </div>
       )}
 
+      {pendingInvites.length > 0 && (
+        <div className="pending-invites">
+          <h3>دعوات بانتظار إكمال التسجيل ({pendingInvites.length})</h3>
+          <ul className="student-list">
+            {pendingInvites.map((invite) => (
+              <li key={invite.code} className="list-row">
+                <div className="list-row-info">
+                  <span className="student-name">{invite.displayName}</span>
+                  <span className="student-email">{invite.email}</span>
+                  <code className="student-code-badge" dir="ltr">{invite.code}</code>
+                </div>
+                <div className="list-row-actions">
+                  <button type="button" className="logout-button" onClick={() => void navigator.clipboard.writeText(invite.code)}>نسخ</button>
+                  <a className="logout-button" href={buildInviteMailto(invite.email, invite.displayName, invite.code)}>إرسال</a>
+                  <button type="button" className="logout-button" onClick={() => void handleDeleteInvite(invite.code)}>حذف</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <ul className="student-list">
-        <li className="student-filter">
+        <li className="student-filter-row">
+          <label className="field">
+            <span>بحث بالاسم أو البريد</span>
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="اكتب للبحث..." />
+          </label>
           <label className="field">
             <span>تصفية حسب المرحلة</span>
             <select value={gradeFilter} onChange={(event) => setGradeFilter(event.target.value)}>
@@ -222,22 +271,29 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
           </label>
         </li>
         {visibleStudents.map((student) => (
-          <li key={student.uid}>
-            <span className="student-name">{student.displayName}</span>
-            <span className="student-email">{student.email}{student.gradeLevel ? ` - ${student.gradeLevel}` : ""}</span>
-            {student.studentCode && <code className="student-code-badge" dir="ltr">{student.studentCode}</code>}
-            <button type="button" className="logout-button" onClick={() => setSelectedStudent(student)}>ملف الطالب</button>
-            <button
-              type="button"
-              className="logout-button"
-              disabled={deletingUid === student.uid}
-              onClick={() => void handleDelete(student.uid, student.displayName)}
-            >
-              {deletingUid === student.uid ? "جارٍ الحذف..." : "حذف"}
-            </button>
+          <li key={student.uid} className="list-row">
+            <div className="list-row-info">
+              <span className="student-name">{student.displayName}</span>
+              <span className="student-email">{student.email}{student.gradeLevel ? ` - ${student.gradeLevel}` : ""}</span>
+              {student.studentCode && <code className="student-code-badge" dir="ltr">{student.studentCode}</code>}
+              <span className={student.primaryDeviceId ?? student.deviceId ? "badge badge-pass" : "badge badge-locked"}>
+                {student.primaryDeviceId ?? student.deviceId ? "🔒 مرتبط بجهاز" : "🔓 بلا جهاز"}
+              </span>
+            </div>
+            <div className="list-row-actions">
+              <button type="button" className="logout-button" onClick={() => setSelectedStudent(student)}>ملف الطالب</button>
+              <button
+                type="button"
+                className="logout-button"
+                disabled={deletingUid === student.uid}
+                onClick={() => void handleDelete(student.uid, student.displayName)}
+              >
+                {deletingUid === student.uid ? "جارٍ الحذف..." : "حذف"}
+              </button>
+            </div>
           </li>
         ))}
-        {visibleStudents.length === 0 && <li className="empty-state">لا يوجد طلاب مطابقون للتصفية.</li>}
+        {visibleStudents.length === 0 && <li className="empty-state">لا يوجد طلاب مطابقون للبحث/التصفية.</li>}
       </ul>
       {selectedStudent && <StudentProfile student={selectedStudent} onClose={() => setSelectedStudent(null)} onAddSession={onAddSession} onAddQuiz={onAddQuiz} />}
     </div>

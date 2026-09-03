@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { collection, doc, getDocs, limit, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
 import MathText from "@/components/MathText";
@@ -12,10 +12,20 @@ interface QuizModalProps {
 }
 
 interface QuizResult {
-  correctCount: number;
-  totalCount: number;
+  earnedPoints: number;
+  totalPoints: number;
+  scorePercent: number;
   passed: boolean;
 }
+
+const shuffle = <T,>(items: T[]): T[] => {
+  const array = [...items];
+  for (let i = array.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+};
 
 const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
   const [quiz, setQuiz] = useState<QuizDoc | null>(null);
@@ -46,6 +56,19 @@ const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
     void loadQuiz();
   }, [sessionId]);
 
+  // ترتيب عرض الأسئلة/الخيارات يُخلط مرة واحدة فقط عند تحميل الاختبار (وليس في كل إعادة رسم)، بينما
+  // يبقى التصحيح مرتبطًا دومًا بالفهرس/القيمة الأصليين فلا يتأثر بالخلط إطلاقًا.
+  const questionOrder = useMemo(() => {
+    if (!quiz) return [];
+    const order = quiz.questions.map((_, index) => index);
+    return quiz.shuffleQuestions ? shuffle(order) : order;
+  }, [quiz]);
+
+  const shuffledOptionsByQuestion = useMemo(() => {
+    if (!quiz) return [];
+    return quiz.questions.map((question) => (quiz.shuffleOptions ? shuffle(question.options) : question.options));
+  }, [quiz]);
+
   const handleSelect = (questionIndex: number, option: string) => {
     setAnswers((prev) => prev.map((value, index) => (index === questionIndex ? option : value)));
   };
@@ -57,20 +80,22 @@ const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
     setErrorMessage(null);
 
     try {
-      // لا وجود لدالة سحابية على خطة Spark: التصحيح يتم محليًا في المتصفح مقابل correctAnswer.
-      const totalCount = quiz.questions.length;
-      const correctCount = quiz.questions.reduce(
-        (count, question, index) => (answers[index] === question.correctAnswer ? count + 1 : count),
+      // لا وجود لدالة سحابية على خطة Spark: التصحيح يتم محليًا في المتصفح، بوزن كل سؤال (points)
+      // مقابل نسبة النجاح المطلوبة (passThreshold) بدل اشتراط الإجابة الصحيحة على الكل حصرًا.
+      const totalPoints = quiz.questions.reduce((sum, question) => sum + (question.points ?? 1), 0);
+      const earnedPoints = quiz.questions.reduce(
+        (sum, question, index) => sum + (answers[index] === question.correctAnswer ? question.points ?? 1 : 0),
         0,
       );
-      const passed = totalCount > 0 && correctCount === totalCount;
+      const scorePercent = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
+      const passed = scorePercent >= (quiz.passThreshold ?? 100);
 
       if (passed) {
         // قواعد Firestore تقصر تحديث الطالب على حقل quizPassed فقط.
         await updateDoc(doc(getFirebaseDb(), "sessions", sessionId), { quizPassed: true });
       }
 
-      setResult({ correctCount, totalCount, passed });
+      setResult({ earnedPoints, totalPoints, scorePercent, passed });
     } catch {
       setErrorMessage("تعذر إرسال الاختبار. حاول مرة أخرى.");
     } finally {
@@ -104,35 +129,40 @@ const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
               void handleSubmit();
             }}
           >
-            {quiz.questions.map((question, questionIndex) => (
-              <fieldset key={question.question} className="quiz-question">
-                <legend>
-                  <span className="quiz-question-number">{questionIndex + 1}.</span>
-                  <MathText content={question.question} className="quiz-question-math" />
-                </legend>
-                {(question.questionMedia ?? []).map((media, mediaIndex) => (
-                  <img key={`${media.url}-${mediaIndex}`} src={media.url} alt="شكل توضيحي للسؤال" className="quiz-media" />
-                ))}
-                {question.options.map((option) => (
-                  <label key={option} className="role-option">
-                    <input
-                      required
-                      type="radio"
-                      name={`question-${questionIndex}`}
-                      value={option}
-                      checked={answers[questionIndex] === option}
-                      onChange={() => handleSelect(questionIndex, option)}
-                    />
-                    <span className="quiz-option-content">
-                      <MathText content={option} />
-                      {(question.optionMedia?.[String(question.options.indexOf(option))] ?? []).map((media, mediaIndex) => (
-                        <img key={`${media.url}-${mediaIndex}`} src={media.url} alt="شكل توضيحي للخيار" className="quiz-option-media" />
-                      ))}
-                    </span>
-                  </label>
-                ))}
-              </fieldset>
-            ))}
+            {questionOrder.map((originalIndex, displayIndex) => {
+              const question = quiz.questions[originalIndex];
+              const displayOptions = shuffledOptionsByQuestion[originalIndex] ?? question.options;
+              return (
+                <fieldset key={originalIndex} className="quiz-question">
+                  <legend>
+                    <span className="quiz-question-number">{displayIndex + 1}.</span>
+                    <MathText content={question.question} className="quiz-question-math" />
+                    {(question.points ?? 1) !== 1 && <span className="quiz-question-points">{question.points} نقاط</span>}
+                  </legend>
+                  {(question.questionMedia ?? []).map((media, mediaIndex) => (
+                    <img key={`${media.url}-${mediaIndex}`} src={media.url} alt="شكل توضيحي للسؤال" className="quiz-media" />
+                  ))}
+                  {displayOptions.map((option) => (
+                    <label key={option} className="role-option">
+                      <input
+                        required
+                        type="radio"
+                        name={`question-${originalIndex}`}
+                        value={option}
+                        checked={answers[originalIndex] === option}
+                        onChange={() => handleSelect(originalIndex, option)}
+                      />
+                      <span className="quiz-option-content">
+                        <MathText content={option} />
+                        {(question.optionMedia?.[String(question.options.indexOf(option))] ?? []).map((media, mediaIndex) => (
+                          <img key={`${media.url}-${mediaIndex}`} src={media.url} alt="شكل توضيحي للخيار" className="quiz-option-media" />
+                        ))}
+                      </span>
+                    </label>
+                  ))}
+                </fieldset>
+              );
+            })}
 
             <button
               type="submit"
@@ -147,13 +177,13 @@ const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
         {result && (
           <div className="quiz-result">
             <p>
-              نتيجتك: {result.correctCount} من {result.totalCount}
+              نتيجتك: {result.scorePercent}% ({result.earnedPoints} من {result.totalPoints} نقطة)
             </p>
             {result.passed ? (
               <p className="form-feedback">أحسنت! تم اجتياز الاختبار وفتح الجلسة التالية.</p>
             ) : (
               <>
-                <p className="auth-error">يجب الإجابة الصحيحة على جميع الأسئلة لاجتياز الاختبار.</p>
+                <p className="auth-error">لم تصل بعد إلى نسبة النجاح المطلوبة. حاول مجددًا.</p>
                 <button type="button" className="primary-button" onClick={handleRetry}>
                   إعادة المحاولة
                 </button>

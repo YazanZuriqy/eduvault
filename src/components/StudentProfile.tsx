@@ -127,11 +127,13 @@ const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentPr
               <code dir="ltr">{student.studentCode}</code>
             </div>
           )}
-          <div className="activation-code-box">
-            <span>كلمة المرور المؤقتة</span>
-            <code dir="ltr">{credential?.activationCode ?? "لم يعد متاحًا"}</code>
-            <small>تُستخدم مرة واحدة فقط عند أول دخول، ثم يختار الطالب كلمة مروره الخاصة.</small>
-          </div>
+          {credential?.activationCode && (
+            <div className="activation-code-box">
+              <span>كلمة المرور المؤقتة (حساب قديم)</span>
+              <code dir="ltr">{credential.activationCode}</code>
+              <small>تُستخدم مرة واحدة فقط عند أول دخول، ثم يختار الطالب كلمة مروره الخاصة.</small>
+            </div>
+          )}
           <div className="device-status-grid">
             <div className="device-status-row">
               <span>الجهاز الأساسي</span>
@@ -154,18 +156,22 @@ const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentPr
           <h3>الجلسات والاختبارات</h3>
           <ul className="session-list">
             {sessions.map((session) => (
-              <li key={session.id}>
-                <span className="session-title">{session.videoTitle}</span>
-                <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>{session.quizPassed ? "مكتمل" : "بانتظار الاختبار"}</span>
+              <li key={session.id} className="list-row">
+                <div className="list-row-info">
+                  <span className="session-title">{session.videoTitle}</span>
+                  <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>{session.quizPassed ? "مكتمل" : "بانتظار الاختبار"}</span>
+                </div>
               </li>
             ))}
             {sessions.length === 0 && <li className="empty-state">لا توجد جلسات لهذا الطالب.</li>}
           </ul>
           <ul className="session-list">
             {quizzes.map((quiz) => (
-              <li key={quiz.id}>
-                <span className="session-title">{quiz.title ?? "اختبار بلا عنوان"}</span>
-                <span className="student-email">{quiz.type === "comprehensive" ? "اختبار شامل" : "اختبار يومي"}</span>
+              <li key={quiz.id} className="list-row">
+                <div className="list-row-info">
+                  <span className="session-title">{quiz.title ?? "اختبار بلا عنوان"}</span>
+                  <span className="student-email">{quiz.type === "comprehensive" ? "اختبار شامل" : "اختبار يومي"}</span>
+                </div>
               </li>
             ))}
             {quizzes.length === 0 && <li className="empty-state">لا توجد اختبارات مكلّف بها بعد.</li>}

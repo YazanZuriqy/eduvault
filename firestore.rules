@@ -32,6 +32,16 @@ service cloud.firestore {
     match /studentCredentials/{studentId} {
       allow read, write: if isTeacher();
     }
+    match /studentInvites/{code} {
+      // القراءة بمعرّف الرمز مباحة للجميع (نمط "رابط قدرة" قبل تسجيل دخول الطالب نفسه)، لكن سرد كل
+      // الدعوات مقصور على المعلّم كي لا يتمكن أحد من تصفّح الأكواد المعلّقة لطلاب آخرين.
+      allow get: if true;
+      allow list: if isTeacher();
+      allow create, delete: if isTeacher();
+      allow update: if isTeacher() || (
+        request.auth != null && request.auth.token.email == resource.data.email
+      );
+    }
     match /sessions/{sessionId} {
       allow create, delete: if isTeacher();
       allow read: if request.auth != null && (request.auth.uid == resource.data.studentId || isTeacher());

@@ -35,6 +35,9 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
   const [lesson, setLesson] = useState("");
   const [title, setTitle] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(assignedStudentId ? [assignedStudentId] : []);
+  const [passThreshold, setPassThreshold] = useState(100);
+  const [shuffleOptions, setShuffleOptions] = useState(false);
+  const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -53,6 +56,25 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
 
   const handleRemoveQuestion = (key: string) => {
     setQuestions((prev) => prev.filter((item) => item.key !== key));
+  };
+
+  const handleDuplicateQuestion = (key: string) => {
+    setQuestions((prev) => {
+      const index = prev.findIndex((item) => item.key === key);
+      if (index === -1) return prev;
+      const clone: QuestionDraft = { ...prev[index], key: crypto.randomUUID() };
+      return [...prev.slice(0, index + 1), clone, ...prev.slice(index + 1)];
+    });
+  };
+
+  const handleMoveQuestion = (index: number, direction: -1 | 1) => {
+    setQuestions((prev) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+      return next;
+    });
   };
 
   const handleAddOption = (key: string) => {
@@ -116,12 +138,16 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
           ...(lesson.trim() ? { lesson: lesson.trim() } : {}),
         },
         createdAt: Date.now(),
-        questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia }) => ({
+        passThreshold,
+        shuffleOptions,
+        shuffleQuestions,
+        questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia, points }) => ({
           question,
           options,
           correctAnswer,
           questionMedia,
           optionMedia,
+          points,
         })),
       };
 
@@ -132,6 +158,9 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
       setSelectedStudentIds([]);
       setUnit("");
       setLesson("");
+      setPassThreshold(100);
+      setShuffleOptions(false);
+      setShuffleQuestions(false);
       setFeedback("تم حفظ الاختبار بنجاح.");
     } catch {
       setFeedback("تعذر حفظ الاختبار. حاول مرة أخرى.");
@@ -196,6 +225,27 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         </select>
       </label>
 
+      <div className="quiz-settings-grid">
+        <label className="field">
+          <span>نسبة النجاح المطلوبة %</span>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={passThreshold}
+            onChange={(event) => setPassThreshold(Math.min(100, Math.max(1, Number(event.target.value) || 100)))}
+          />
+        </label>
+        <label className="checkbox-field">
+          <input type="checkbox" checked={shuffleQuestions} onChange={(event) => setShuffleQuestions(event.target.checked)} />
+          <span>ترتيب عشوائي للأسئلة لكل طالب</span>
+        </label>
+        <label className="checkbox-field">
+          <input type="checkbox" checked={shuffleOptions} onChange={(event) => setShuffleOptions(event.target.checked)} />
+          <span>ترتيب عشوائي للخيارات لكل طالب</span>
+        </label>
+      </div>
+
       <fieldset className="student-assignment">
         <legend>الطلاب المكلّفون بالاختبار</legend>
         {students.map((student) => (
@@ -225,11 +275,31 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
           <article key={question.key} className="quiz-question-card">
             <div className="quiz-question-card-header">
               <span className="quiz-question-number">سؤال {questionIndex + 1}</span>
-              {questions.length > 1 && (
-                <button type="button" className="logout-button" onClick={() => handleRemoveQuestion(question.key)}>
-                  حذف السؤال
+              <div className="quiz-question-card-tools">
+                <label className="quiz-points-field">
+                  <span>الدرجة</span>
+                  <input
+                    type="number"
+                    min={1}
+                    value={question.points ?? 1}
+                    onChange={(event) => updateQuestion(question.key, { points: Math.max(1, Number(event.target.value) || 1) })}
+                  />
+                </label>
+                <button type="button" className="logout-button" disabled={questionIndex === 0} onClick={() => handleMoveQuestion(questionIndex, -1)} title="نقل لأعلى">
+                  ▲
                 </button>
-              )}
+                <button type="button" className="logout-button" disabled={questionIndex === questions.length - 1} onClick={() => handleMoveQuestion(questionIndex, 1)} title="نقل لأسفل">
+                  ▼
+                </button>
+                <button type="button" className="logout-button" onClick={() => handleDuplicateQuestion(question.key)}>
+                  نسخ السؤال
+                </button>
+                {questions.length > 1 && (
+                  <button type="button" className="logout-button" onClick={() => handleRemoveQuestion(question.key)}>
+                    حذف السؤال
+                  </button>
+                )}
+              </div>
             </div>
 
             <MathInlineField

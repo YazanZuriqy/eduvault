@@ -5,8 +5,8 @@ import {
   updatePassword,
 } from "firebase/auth";
 import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
-import { getFirebaseAuth, getFirebaseDb, getSecondaryAuth } from "@/utils/firebase";
-import type { StudentCredentialDoc, UserDoc, UserRole } from "@/types";
+import { getFirebaseAuth, getFirebaseDb } from "@/utils/firebase";
+import type { StudentCredentialDoc, StudentInviteDoc, UserDoc, UserRole } from "@/types";
 
 interface RegisterInput {
   email: string;
@@ -144,16 +144,12 @@ const randomFromCharset = (charset: string, length: number): string => {
   return Array.from(randomValues, (value) => charset[value % charset.length]).join("");
 };
 
-// كلمة مرور مؤقتة يولّدها المعلّم للطالب، بصيغة يسهل نسخها/إملاؤها (Tmp@1234)، يستبدلها الطالب بنفسه
-// عند أول دخول عبر completeStudentActivation.
-export const generateStudentPassword = (): string => `Tmp@${randomFromCharset("0123456789", 4)}`;
-
-// رمز طالب قصير (6 محارف) يعرضه المعلّم في لوحته للتعرّف السريع على الطالب دون كشف بريده/كلمة مروره.
+// رمز طالب قصير (6 محارف) يولّده المعلّم عند تسجيل الطالب، يُستخدم كمفتاح دعوة تسجيل (studentInvites)
+// وكمعرّف سريع للطالب في لوحة المعلّم لاحقًا.
 export const generateStudentCode = (): string => randomFromCharset(CODE_CHARS, 6);
 
-interface CreateStudentInput {
+interface CreateStudentInviteInput {
   email: string;
-  password: string;
   displayName: string;
   phone: string;
   parentEmail?: string;
@@ -161,48 +157,80 @@ interface CreateStudentInput {
   driveFolderId?: string;
 }
 
-// يُنشئ حساب الطالب عبر مثيل Firebase ثانوي منعزل كي تبقى جلسة المعلّم الحالية سليمة. يُهيّئ أيضًا
-// حقول بصمة الجهاز الأساسية (biometricLocked/primaryDeviceId/secondaryDeviceId) صراحةً منذ الإنشاء.
-export const createStudentAccount = async ({
-  email,
-  password,
-  displayName,
-  phone,
-  parentEmail,
-  gradeLevel,
-  driveFolderId,
-}: CreateStudentInput): Promise<UserDoc> => {
-  const secondaryAuth = getSecondaryAuth();
-  try {
-    const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
-    const studentCode = generateStudentCode();
-    const userDoc: UserDoc = {
-      uid: credential.user.uid,
-      email,
-      role: "student",
-      displayName,
-      phone,
-      createdAt: Date.now(),
-      activationPending: true,
-      studentCode,
-      biometricLocked: false,
-      primaryDeviceId: null,
-      secondaryDeviceId: null,
-      ...(parentEmail ? { parentEmail } : {}),
-      ...(gradeLevel ? { gradeLevel } : {}),
-      ...(driveFolderId ? { driveFolderId } : {}),
-    };
+// يُنشئ المعلّم دعوة تسجيل بدل حساب جاهز: يولّد رمزًا فريدًا ويخزّن بيانات الطالب الأساسية في
+// studentInvites بانتظار أن يُكمل الطالب تسجيله بنفسه (بكلمة مرور من اختياره) عبر صندوق "تسجيل طالب".
+export const createStudentInvite = async (input: CreateStudentInviteInput): Promise<StudentInviteDoc> => {
+  const db = getFirebaseDb();
+  let code = generateStudentCode();
 
-    await setDoc(doc(getFirebaseDb(), "users", credential.user.uid), userDoc);
-    await setDoc(doc(getFirebaseDb(), "studentCredentials", credential.user.uid), {
-      studentId: credential.user.uid,
-      activationCode: password,
-      createdAt: Date.now(),
-    } satisfies StudentCredentialDoc);
-    return userDoc;
-  } finally {
-    await signOut(secondaryAuth);
+  // إعادة توليد نادرة عند تصادم في الرمز، كونه يُستخدم مباشرة كمعرّف مستند فريد.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const existing = await getDoc(doc(db, "studentInvites", code));
+    if (!existing.exists()) break;
+    code = generateStudentCode();
   }
+
+  const invite: StudentInviteDoc = {
+    code,
+    email: input.email.trim().toLowerCase(),
+    displayName: input.displayName,
+    phone: input.phone,
+    createdAt: Date.now(),
+    used: false,
+    ...(input.parentEmail ? { parentEmail: input.parentEmail } : {}),
+    ...(input.gradeLevel ? { gradeLevel: input.gradeLevel } : {}),
+    ...(input.driveFolderId ? { driveFolderId: input.driveFolderId } : {}),
+  };
+
+  await setDoc(doc(db, "studentInvites", code), invite);
+  return invite;
+};
+
+interface RegisterStudentInput {
+  code: string;
+  email: string;
+  password: string;
+  displayName: string;
+  phone: string;
+  parentEmail?: string;
+}
+
+// يُكمل الطالب تسجيله بنفسه: يتحقق من الرمز المرتبط ببريده لدى المعلّم، ثم يُنشئ حساب Firebase Auth
+// الفعلي بكلمة المرور التي يختارها هو حصرًا (المعلّم لا يعرفها إطلاقًا).
+export const registerStudentWithInvite = async (input: RegisterStudentInput): Promise<UserDoc> => {
+  const db = getFirebaseDb();
+  const normalizedCode = input.code.trim().toUpperCase();
+  const normalizedEmail = input.email.trim().toLowerCase();
+
+  const inviteSnapshot = await getDoc(doc(db, "studentInvites", normalizedCode));
+  if (!inviteSnapshot.exists()) throw new Error("رمز التسجيل غير صحيح.");
+
+  const invite = inviteSnapshot.data() as StudentInviteDoc;
+  if (invite.used) throw new Error("تم استخدام هذا الرمز مسبقًا. اطلب من المعلّم رمزًا جديدًا.");
+  if (invite.email !== normalizedEmail) throw new Error("البريد الإلكتروني لا يطابق الرمز المدخل.");
+
+  const credential = await createUserWithEmailAndPassword(getFirebaseAuth(), invite.email, input.password);
+  const parentEmail = input.parentEmail?.trim() || invite.parentEmail;
+  const userDoc: UserDoc = {
+    uid: credential.user.uid,
+    email: invite.email,
+    role: "student",
+    displayName: input.displayName.trim() || invite.displayName,
+    phone: input.phone.trim() || invite.phone,
+    createdAt: Date.now(),
+    studentCode: invite.code,
+    biometricLocked: false,
+    primaryDeviceId: null,
+    secondaryDeviceId: null,
+    ...(parentEmail ? { parentEmail } : {}),
+    ...(invite.gradeLevel ? { gradeLevel: invite.gradeLevel } : {}),
+    ...(invite.driveFolderId ? { driveFolderId: invite.driveFolderId } : {}),
+  };
+
+  await setDoc(doc(db, "users", credential.user.uid), userDoc);
+  await updateDoc(doc(db, "studentInvites", normalizedCode), { used: true });
+
+  return userDoc;
 };
 
 // حذف حساب طالب: يحذف مستند المستخدم وجلساته واختباراته المرتبطة. ملاحظة مهمّة: على خطة Spark

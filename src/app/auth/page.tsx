@@ -1,15 +1,23 @@
 "use client";
 
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FirebaseError } from "firebase/app";
-import { completeStudentActivation, loginUser, registerUser, translateFirebaseError } from "@/utils/auth";
+import {
+  completeStudentActivation,
+  loginUser,
+  registerStudentWithInvite,
+  registerUser,
+  translateFirebaseError,
+} from "@/utils/auth";
+import { useAuthUser } from "@/utils/useAuthUser";
 import type { UserDoc } from "@/types";
 
-type Mode = "login" | "register";
+type Mode = "login" | "register" | "student-register";
 
 const AuthPage = () => {
   const router = useRouter();
+  const { firebaseUser, userDoc, isLoading } = useAuthUser();
   const [mode, setMode] = useState<Mode>("login");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -20,25 +28,75 @@ const AuthPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [srCode, setSrCode] = useState("");
+  const [srName, setSrName] = useState("");
+  const [srEmail, setSrEmail] = useState("");
+  const [srPhone, setSrPhone] = useState("");
+  const [srParentEmail, setSrParentEmail] = useState("");
+  const [srPassword, setSrPassword] = useState("");
+  const [srConfirmPassword, setSrConfirmPassword] = useState("");
+
+  const needsActivation = Boolean(
+    pendingStudent ?? (userDoc?.role === "student" && userDoc.activationPending ? userDoc : null),
+  );
+
+  // جلسة صالحة بالفعل (مثلًا بعد ضغط زر الرجوع في المتصفح) تُوجَّه مباشرة إلى لوحتها بدل عرض نموذج
+  // دخول يوحي بأن الحساب أُغلق؛ إغلاق الحساب الفعلي يبقى حصرًا عبر زر تسجيل الخروج في اللوحة نفسها.
+  useEffect(() => {
+    if (isLoading || !firebaseUser || !userDoc || needsActivation) return;
+    router.replace(`/dashboard/${userDoc.role}`);
+  }, [isLoading, firebaseUser, userDoc, needsActivation, router]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setIsSubmitting(true);
 
     try {
-      const userDoc =
+      const resultDoc =
         mode === "login"
           ? await loginUser(email, password)
           : await registerUser({ email, password, displayName, role: "teacher" });
 
-      if (mode === "login" && userDoc.role === "student" && userDoc.activationPending) {
-        setPendingStudent(userDoc);
+      if (mode === "login" && resultDoc.role === "student" && resultDoc.activationPending) {
+        setPendingStudent(resultDoc);
         return;
       }
-      router.push(`/dashboard/${userDoc.role}`);
+      router.push(`/dashboard/${resultDoc.role}`);
     } catch (err) {
       const message =
         err instanceof FirebaseError ? translateFirebaseError(err.code) : err instanceof Error ? err.message : "حدث خطأ غير متوقع. حاول مجددًا.";
+      setError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleStudentRegister = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (srPassword !== srConfirmPassword) {
+      setError("كلمتا المرور غير متطابقتين.");
+      return;
+    }
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await registerStudentWithInvite({
+        code: srCode,
+        email: srEmail,
+        password: srPassword,
+        displayName: srName,
+        phone: srPhone,
+        parentEmail: srParentEmail || undefined,
+      });
+      router.push("/dashboard/student");
+    } catch (err) {
+      const message =
+        err instanceof FirebaseError
+          ? translateFirebaseError(err.code)
+          : err instanceof Error
+            ? err.message
+            : "تعذر إكمال التسجيل.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -63,9 +121,22 @@ const AuthPage = () => {
     }
   };
 
-  if (pendingStudent) {
+  if (isLoading || (firebaseUser && userDoc && !needsActivation)) {
     return (
       <main className="auth-page">
+        <div className="auth-glow" aria-hidden="true" />
+        <div className="auth-card">
+          <p className="auth-eyebrow">EDUVAULT ACCESS</p>
+          <p className="quiz-hint">جارٍ التحقق من الجلسة...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (needsActivation) {
+    return (
+      <main className="auth-page">
+        <div className="auth-glow" aria-hidden="true" />
         <div className="auth-card">
           <p className="auth-eyebrow">FIRST ACCESS</p>
           <h1>تفعيل حساب الطالب</h1>
@@ -83,9 +154,10 @@ const AuthPage = () => {
 
   return (
     <main className="auth-page">
+      <div className="auth-glow" aria-hidden="true" />
       <div className="auth-card">
         <p className="auth-eyebrow">EDUVAULT ACCESS</p>
-        <h1>{mode === "login" ? "تسجيل الدخول" : "تسجيل معلّم جديد"}</h1>
+        <h1>{mode === "login" ? "تسجيل الدخول" : mode === "register" ? "تسجيل معلّم جديد" : "تسجيل حساب طالب"}</h1>
 
         <div className="auth-tabs" role="tablist" aria-label="نوع العملية">
           <button
@@ -93,7 +165,7 @@ const AuthPage = () => {
             role="tab"
             aria-selected={mode === "login"}
             className={mode === "login" ? "active" : ""}
-            onClick={() => setMode("login")}
+            onClick={() => { setMode("login"); setError(null); }}
           >
             دخول
           </button>
@@ -102,64 +174,124 @@ const AuthPage = () => {
             role="tab"
             aria-selected={mode === "register"}
             className={mode === "register" ? "active" : ""}
-            onClick={() => setMode("register")}
+            onClick={() => { setMode("register"); setError(null); }}
           >
-            تسجيل جديد
+            تسجيل معلّم
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === "student-register"}
+            className={mode === "student-register" ? "active" : ""}
+            onClick={() => { setMode("student-register"); setError(null); }}
+          >
+            تسجيل طالب
           </button>
         </div>
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          {mode === "register" && (
+        {mode !== "student-register" && (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            {mode === "register" && (
+              <label className="field">
+                <span>الاسم الكامل</span>
+                <input
+                  required
+                  type="text"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
+                  placeholder="مثال: أحمد الزريقي"
+                />
+              </label>
+            )}
+
             <label className="field">
-              <span>الاسم الكامل</span>
+              <span>البريد الإلكتروني</span>
+              <input
+                required
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="name@example.com"
+                dir="ltr"
+              />
+            </label>
+
+            <label className="field">
+              <span>كلمة المرور</span>
+              <input
+                required
+                type="password"
+                minLength={6}
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="••••••••"
+                dir="ltr"
+              />
+            </label>
+
+            {mode === "register" && (
+              <p className="quiz-hint">
+                هذا التسجيل مخصص للمعلّمين فقط. حسابات الطلاب يبدأها المعلّم برمز من لوحته، ثم يُكمل
+                الطالب تسجيله بنفسه من تبويب «تسجيل طالب».
+              </p>
+            )}
+
+            {error && <p className="auth-error" role="alert">{error}</p>}
+
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? "دخول" : "إنشاء الحساب"}
+            </button>
+          </form>
+        )}
+
+        {mode === "student-register" && (
+          <form className="auth-form" onSubmit={(event) => void handleStudentRegister(event)}>
+            <p className="quiz-hint">اطلب من معلّمك رمز التسجيل الخاص بك، ثم أكمل بياناتك واختر كلمة مرورك هنا.</p>
+
+            <label className="field">
+              <span>رمز التسجيل</span>
               <input
                 required
                 type="text"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="مثال: أحمد الزريقي"
+                className="code-input"
+                value={srCode}
+                onChange={(event) => setSrCode(event.target.value.toUpperCase())}
+                placeholder="مثال: 7K3PXQ"
+                dir="ltr"
               />
             </label>
-          )}
+            <label className="field">
+              <span>الاسم الكامل</span>
+              <input required type="text" value={srName} onChange={(event) => setSrName(event.target.value)} placeholder="مثال: سارة أحمد" />
+            </label>
+            <label className="field">
+              <span>البريد الإلكتروني (نفسه الذي سجّله المعلّم)</span>
+              <input required type="email" value={srEmail} onChange={(event) => setSrEmail(event.target.value)} placeholder="student@example.com" dir="ltr" />
+            </label>
+            <label className="field">
+              <span>رقم الهاتف</span>
+              <input required type="tel" value={srPhone} onChange={(event) => setSrPhone(event.target.value)} placeholder="05xxxxxxxx" dir="ltr" />
+            </label>
+            <label className="field">
+              <span>بريد ولي الأمر (اختياري)</span>
+              <input type="email" value={srParentEmail} onChange={(event) => setSrParentEmail(event.target.value)} placeholder="parent@example.com" dir="ltr" />
+            </label>
+            <label className="field">
+              <span>كلمة المرور الخاصة بك</span>
+              <input required type="password" minLength={6} value={srPassword} onChange={(event) => setSrPassword(event.target.value)} dir="ltr" />
+            </label>
+            <label className="field">
+              <span>تأكيد كلمة المرور</span>
+              <input required type="password" minLength={6} value={srConfirmPassword} onChange={(event) => setSrConfirmPassword(event.target.value)} dir="ltr" />
+            </label>
 
-          <label className="field">
-            <span>البريد الإلكتروني</span>
-            <input
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="name@example.com"
-              dir="ltr"
-            />
-          </label>
+            {error && <p className="auth-error" role="alert">{error}</p>}
 
-          <label className="field">
-            <span>كلمة المرور</span>
-            <input
-              required
-              type="password"
-              minLength={6}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="••••••••"
-              dir="ltr"
-            />
-          </label>
-
-          {mode === "register" && (
-            <p className="quiz-hint">
-              هذا التسجيل مخصص للمعلّمين فقط. حسابات الطلاب يُنشئها المعلّم من لوحته الخاصة مع كلمة
-              مرور جاهزة، ولا يوجد تسجيل ذاتي للطلاب.
-            </p>
-          )}
-
-          {error && <p className="auth-error" role="alert">{error}</p>}
-
-          <button className="auth-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "جارٍ المعالجة..." : mode === "login" ? "دخول" : "إنشاء الحساب"}
-          </button>
-        </form>
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting ? "جارٍ إكمال التسجيل..." : "إكمال التسجيل والدخول"}
+            </button>
+          </form>
+        )}
       </div>
     </main>
   );

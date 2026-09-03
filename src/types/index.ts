@@ -28,6 +28,20 @@ export interface StudentCredentialDoc {
   createdAt: number;
 }
 
+// دعوة تسجيل طالب: ينشئها المعلّم برمز (code = معرّف المستند)، ويُكملها الطالب بنفسه عبر
+// صندوق "تسجيل طالب" بكلمة مرور من اختياره هو.
+export interface StudentInviteDoc {
+  code: string;
+  email: string;
+  displayName: string;
+  phone: string;
+  parentEmail?: string;
+  gradeLevel?: string;
+  driveFolderId?: string;
+  createdAt: number;
+  used: boolean;
+}
+
 export interface SessionDoc {
   sessionId: string;
   studentId: string;
@@ -57,6 +71,7 @@ export interface QuizQuestion {
   correctAnswer: string;
   questionMedia?: QuizMedia[];
   optionMedia?: Record<string, QuizMedia[]>;
+  points?: number;
 }
 
 export interface QuizDoc {
@@ -73,6 +88,10 @@ export interface QuizDoc {
   };
   createdAt?: number;
   questions: QuizQuestion[];
+  // نسبة النجاح المطلوبة من مجموع النقاط (افتراضيًا 100%، أي إجابة كاملة صحيحة).
+  passThreshold?: number;
+  shuffleOptions?: boolean;
+  shuffleQuestions?: boolean;
 }
 
 export interface NoteDoc {

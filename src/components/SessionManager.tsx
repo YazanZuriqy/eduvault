@@ -49,21 +49,25 @@ const SessionManager = ({ sessions, students, onEdit, onCopy, onDelete }: Sessio
                   {lessonSessions.map((session) => {
                     const student = students.find((entry) => entry.uid === session.studentId);
                     return (
-                      <li key={session.id}>
-                        <span className="session-title">{session.videoTitle}</span>
-                        <span className="session-student">{student?.displayName ?? session.studentId}</span>
-                        <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>
-                          {session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}
-                        </span>
-                        <button type="button" className="logout-button" onClick={() => onEdit(session)}>
-                          تعديل
-                        </button>
-                        <button type="button" className="logout-button" onClick={() => onCopy(session)}>
-                          نسخ
-                        </button>
-                        <button type="button" className="logout-button" onClick={() => onDelete(session.id)}>
-                          حذف
-                        </button>
+                      <li key={session.id} className="list-row">
+                        <div className="list-row-info">
+                          <span className="session-title">{session.videoTitle}</span>
+                          <span className="session-student">{student?.displayName ?? "طالب محذوف"}</span>
+                          <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>
+                            {session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}
+                          </span>
+                        </div>
+                        <div className="list-row-actions">
+                          <button type="button" className="logout-button" onClick={() => onEdit(session)}>
+                            تعديل
+                          </button>
+                          <button type="button" className="logout-button" onClick={() => onCopy(session)}>
+                            نسخ
+                          </button>
+                          <button type="button" className="logout-button" onClick={() => onDelete(session.id)}>
+                            حذف
+                          </button>
+                        </div>
                       </li>
                     );
                   })}
