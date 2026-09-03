@@ -2,20 +2,13 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { addDoc, collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
+import { doc, onSnapshot } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
 import { useAuthUser } from "@/utils/useAuthUser";
-import VideoPlayer from "@/components/VideoPlayer";
-import QuizModal from "@/components/QuizModal";
-import type { NoteDoc, SessionDoc } from "@/types";
+import SessionDetailPanel from "@/components/SessionDetailPanel";
+import type { SessionDoc } from "@/types";
 
 type SessionWithId = SessionDoc & { id: string };
-
-const formatTimestamp = (seconds: number): string => {
-  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
-  const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
-  return `${minutes}:${secs}`;
-};
 
 const SessionViewerContent = () => {
   const router = useRouter();
@@ -24,10 +17,6 @@ const SessionViewerContent = () => {
   const { firebaseUser, userDoc, isLoading } = useAuthUser();
 
   const [session, setSession] = useState<SessionWithId | null>(null);
-  const [notes, setNotes] = useState<NoteDoc[]>([]);
-  const [isQuizOpen, setIsQuizOpen] = useState(false);
-  const [noteMinutes, setNoteMinutes] = useState("");
-  const [noteSeconds, setNoteSeconds] = useState("");
 
   useEffect(() => {
     if (!isLoading && (!firebaseUser || userDoc?.role !== "student")) {
@@ -58,48 +47,6 @@ const SessionViewerContent = () => {
     return unsubscribe;
   }, [sessionId, userDoc, router]);
 
-  useEffect(() => {
-    if (!session || session.watchedAt) return;
-    void updateDoc(doc(getFirebaseDb(), "sessions", session.id), { watchedAt: Date.now() });
-  }, [session]);
-
-  useEffect(() => {
-    if (!sessionId || userDoc?.role !== "student") return;
-
-    const notesQuery = query(
-      collection(getFirebaseDb(), "notes"),
-      where("sessionId", "==", sessionId),
-      where("studentId", "==", userDoc.uid),
-    );
-
-    const unsubscribe = onSnapshot(notesQuery, (snapshot) => {
-      const nextNotes = snapshot.docs
-        .map((docSnapshot) => docSnapshot.data() as NoteDoc)
-        .sort((a, b) => a.timestampSeconds - b.timestampSeconds);
-      setNotes(nextNotes);
-    });
-
-    return unsubscribe;
-  }, [sessionId, userDoc]);
-
-  const handleAddNote = async () => {
-    if (!userDoc || !session) return;
-
-    const totalSeconds = (Number(noteMinutes) || 0) * 60 + (Number(noteSeconds) || 0);
-
-    const note: Omit<NoteDoc, "noteId"> = {
-      sessionId: session.id,
-      studentId: userDoc.uid,
-      label: `ملاحظة عند ${formatTimestamp(totalSeconds)}`,
-      timestampSeconds: totalSeconds,
-      createdAt: Date.now(),
-    };
-
-    await addDoc(collection(getFirebaseDb(), "notes"), note);
-    setNoteMinutes("");
-    setNoteSeconds("");
-  };
-
   if (isLoading || userDoc?.role !== "student") {
     return (
       <main className="dashboard-shell">
@@ -128,67 +75,16 @@ const SessionViewerContent = () => {
         </button>
       </header>
 
-      <section className="session-viewer-grid">
-        <div className="panel player-panel">
-          <VideoPlayer
-            driveFileId={session.driveFileId}
+      <section className="dashboard-grid">
+        <article className="panel panel-wide">
+          <SessionDetailPanel
+            session={session}
+            studentId={userDoc.uid}
             studentEmail={userDoc.email}
             studentPhone={userDoc.phone ?? "—"}
           />
-
-          <div className="note-timestamp-form">
-            <label className="field">
-              <span>دقيقة</span>
-              <input
-                type="number"
-                min={0}
-                value={noteMinutes}
-                onChange={(event) => setNoteMinutes(event.target.value)}
-                placeholder="00"
-              />
-            </label>
-            <label className="field">
-              <span>ثانية</span>
-              <input
-                type="number"
-                min={0}
-                max={59}
-                value={noteSeconds}
-                onChange={(event) => setNoteSeconds(event.target.value)}
-                placeholder="00"
-              />
-            </label>
-          </div>
-
-          <div className="player-actions">
-            <button type="button" className="primary-button" onClick={() => void handleAddNote()}>
-              إضافة ملاحظة عند هذه اللحظة
-            </button>
-            <button
-              type="button"
-              className="primary-button"
-              onClick={() => setIsQuizOpen(true)}
-              disabled={session.quizPassed}
-            >
-              {session.quizPassed ? "تم اجتياز الاختبار" : "بدء الاختبار"}
-            </button>
-          </div>
-        </div>
-
-        <aside className="panel notes-panel">
-          <h2>ملاحظاتي الزمنية</h2>
-          <ul className="notes-list">
-            {notes.map((note) => (
-              <li key={`${note.sessionId}-${note.timestampSeconds}`}>
-                <span>{formatTimestamp(note.timestampSeconds)} — {note.label}</span>
-              </li>
-            ))}
-            {notes.length === 0 && <li className="empty-state">لا توجد ملاحظات محفوظة بعد.</li>}
-          </ul>
-        </aside>
+        </article>
       </section>
-
-      {isQuizOpen && <QuizModal sessionId={session.id} onClose={() => setIsQuizOpen(false)} />}
     </main>
   );
 };
@@ -206,3 +102,4 @@ const SessionViewerPage = () => (
 );
 
 export default SessionViewerPage;
+

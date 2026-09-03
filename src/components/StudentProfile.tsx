@@ -1,8 +1,10 @@
 "use client";
 
 import { type FormEvent, useEffect, useState } from "react";
-import { collection, deleteField, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
+import { allowAdditionalStudentDevice, unbindStudentDevice } from "@/utils/auth";
+import DriveFolderExplorer from "@/components/DriveFolderExplorer";
 import type { QuizDoc, SessionDoc, StudentCredentialDoc, UserDoc } from "@/types";
 
 interface StudentProfileProps {
@@ -65,16 +67,24 @@ const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentPr
     }
   };
 
-  const handleClearDevice = async () => {
-    if (!window.confirm("سيحتاج الطالب إلى تسجيل الدخول مجددًا من جهازه الجديد. هل تريد تحرير الجهاز؟")) return;
+  const handleUnbindDevice = async () => {
+    if (!window.confirm("سيفقد الطالب ارتباطه بكل الأجهزة، وسيُعتمد أول جهاز يسجّل الدخول كجهاز أساسي جديد. متابعة؟")) return;
+    setMessage(null);
     try {
-      await updateDoc(doc(getFirebaseDb(), "users", student.uid), {
-        deviceId: deleteField(),
-        deviceBoundAt: deleteField(),
-      });
-      setMessage("تم تحرير الجهاز. سيُسجّل الجهاز التالي عند أول دخول صحيح.");
+      await unbindStudentDevice(student.uid);
+      setMessage("تم فك ارتباط الجهاز الحالي. سيُعتمد أول جهاز يسجّل الدخول كجهاز أساسي.");
     } catch {
-      setMessage("تعذر تحرير الجهاز.");
+      setMessage("تعذر فك ارتباط الجهاز.");
+    }
+  };
+
+  const handleAllowSecondaryDevice = async () => {
+    setMessage(null);
+    try {
+      await allowAdditionalStudentDevice(student.uid);
+      setMessage("تم فتح نافذة السماح. أول دخول تالٍ من جهاز مختلف سيُعتمد تلقائيًا كجهاز إضافي.");
+    } catch {
+      setMessage("تعذر فتح نافذة السماح.");
     }
   };
 
@@ -111,14 +121,30 @@ const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentPr
           <label className="field"><span>بريد ولي الأمر</span><input value={parentEmail} onChange={(event) => setParentEmail(event.target.value)} dir="ltr" /></label>
           <label className="field"><span>المرحلة الدراسية</span><input value={gradeLevel} onChange={(event) => setGradeLevel(event.target.value)} /></label>
           <label className="field"><span>معرّف ملف Drive</span><input value={student.driveFolderId ?? "لم يُنشأ بعد"} readOnly dir="ltr" /></label>
+          {student.studentCode && (
+            <div className="activation-code-box">
+              <span>رمز الطالب</span>
+              <code dir="ltr">{student.studentCode}</code>
+            </div>
+          )}
           <div className="activation-code-box">
-            <span>رمز التفعيل المولّد</span>
+            <span>كلمة المرور المؤقتة</span>
             <code dir="ltr">{credential?.activationCode ?? "لم يعد متاحًا"}</code>
-            <small>يُستخدم مرة واحدة فقط عند أول دخول، ثم يختار الطالب كلمة مروره الخاصة.</small>
+            <small>تُستخدم مرة واحدة فقط عند أول دخول، ثم يختار الطالب كلمة مروره الخاصة.</small>
+          </div>
+          <div className="device-status-grid">
+            <div className="device-status-row">
+              <span>الجهاز الأساسي</span>
+              <span>{student.primaryDeviceId ?? student.deviceId ? "مرتبط" : "غير مرتبط"}</span>
+            </div>
+            <div className="device-status-row">
+              <span>الجهاز الإضافي</span>
+              <span>{student.secondaryDeviceId ? "مرتبط" : student.secondaryDeviceWindowOpen ? "بانتظار أول دخول" : "—"}</span>
+            </div>
           </div>
           <div className="device-control">
-            <span>{student.deviceId ? "الجهاز مرتبط حاليًا" : "لا يوجد جهاز مرتبط"}</span>
-            <button type="button" className="logout-button" disabled={!student.deviceId} onClick={() => void handleClearDevice}>تحرير الجهاز</button>
+            <button type="button" className="logout-button" onClick={() => void handleUnbindDevice()}>فكّ ارتباط الجهاز الحالي</button>
+            <button type="button" className="logout-button" onClick={() => void handleAllowSecondaryDevice()}>السماح بجهاز إضافي</button>
           </div>
           {message && <p className="form-feedback">{message}</p>}
           <button className="primary-button" type="submit" disabled={isSaving}>{isSaving ? "جارٍ الحفظ..." : "حفظ البيانات"}</button>
@@ -144,6 +170,12 @@ const StudentProfile = ({ student, onClose, onAddSession, onAddQuiz }: StudentPr
             ))}
             {quizzes.length === 0 && <li className="empty-state">لا توجد اختبارات مكلّف بها بعد.</li>}
           </ul>
+          {student.driveFolderId && (
+            <>
+              <h3>ملفات الطالب على Google Drive</h3>
+              <DriveFolderExplorer rootFolderId={student.driveFolderId} />
+            </>
+          )}
         </div>
       </div>
     </section>

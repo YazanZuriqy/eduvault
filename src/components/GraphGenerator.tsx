@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 
 interface GraphGeneratorProps {
-  onInsert: (markdown: string) => void;
+  onInsert: (dataUrl: string) => void;
 }
 
 interface Piece {
@@ -338,7 +338,7 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
     }
 
     const dataUrl = canvas.toDataURL("image/png");
-    onInsert(`![quiz-graph](${dataUrl})`);
+    onInsert(dataUrl);
   };
 
   return (

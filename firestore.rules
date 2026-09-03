@@ -15,11 +15,17 @@ service cloud.firestore {
       );
       allow update: if request.auth != null && (
         (isTeacher() && resource.data.role == 'student' && request.resource.data.role == 'student') ||
-        (request.auth.uid == userId && resource.data.role == 'student' &&
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['deviceId', 'deviceBoundAt', 'activationPending']) &&
-          (!('deviceId' in resource.data) ||
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activationPending']))) ||
-        (request.auth.uid == userId && resource.data.role == 'teacher')
+        (request.auth.uid == userId && resource.data.role == 'teacher') ||
+        (request.auth.uid == userId && resource.data.role == 'student' && (
+          // تفعيل الحساب بعد أول دخول (استبدال كلمة المرور المؤقتة).
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activationPending']) ||
+          // الربط الأول بجهاز أساسي: لا يوجد جهاز أساسي مسجّل بعد (غائب أو null).
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['primaryDeviceId', 'biometricLocked']) &&
+            (!('primaryDeviceId' in resource.data) || resource.data.primaryDeviceId == null)) ||
+          // اعتماد جهاز ثانوي أثناء نافذة سماح فتحها المعلّم صراحةً.
+          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['secondaryDeviceId', 'secondaryDeviceWindowOpen']) &&
+            resource.data.secondaryDeviceWindowOpen == true)
+        ))
       );
       allow delete: if request.auth != null && (request.auth.uid == userId || isTeacher());
     }

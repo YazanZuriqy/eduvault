@@ -16,6 +16,7 @@ interface StudentManagerProps {
 interface GeneratedCredentials {
   email: string;
   password: string;
+  studentCode: string;
 }
 
 const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerProps) => {
@@ -48,7 +49,7 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
       const password = generateStudentPassword();
       const token = createDriveFolder ? await requestGoogleDriveToken() : null;
       const driveFolderId = token ? await createStudentDriveFolder(token, displayName, gradeLevel) : undefined;
-      await createStudentAccount({
+      const created = await createStudentAccount({
         email,
         password,
         displayName,
@@ -57,7 +58,7 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
         gradeLevel: gradeLevel || undefined,
         driveFolderId,
       });
-      setGeneratedCredentials({ email, password });
+      setGeneratedCredentials({ email, password, studentCode: created.studentCode ?? "—" });
       setDisplayName("");
       setEmail("");
       setPhone("");
@@ -177,18 +178,29 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
 
       {generatedCredentials && (
         <div className="generated-credentials">
-          <p>تم إنشاء الحساب بنجاح. احفظ كلمة المرور الآن قبل الإغلاق — لن تظهر مرة أخرى:</p>
+          <p>تم إنشاء الحساب بنجاح. احفظ البيانات الآن قبل الإغلاق — لن تظهر مرة أخرى:</p>
           <div className="credential-row">
             <span>البريد:</span>
             <code dir="ltr">{generatedCredentials.email}</code>
           </div>
           <div className="credential-row">
-            <span>كلمة المرور:</span>
+            <span>كلمة المرور المؤقتة:</span>
             <code dir="ltr">{generatedCredentials.password}</code>
             <button
               type="button"
               className="logout-button"
               onClick={() => void navigator.clipboard.writeText(generatedCredentials.password)}
+            >
+              نسخ
+            </button>
+          </div>
+          <div className="credential-row">
+            <span>رمز الطالب:</span>
+            <code dir="ltr">{generatedCredentials.studentCode}</code>
+            <button
+              type="button"
+              className="logout-button"
+              onClick={() => void navigator.clipboard.writeText(generatedCredentials.studentCode)}
             >
               نسخ
             </button>
@@ -213,6 +225,7 @@ const StudentManager = ({ students, onAddSession, onAddQuiz }: StudentManagerPro
           <li key={student.uid}>
             <span className="student-name">{student.displayName}</span>
             <span className="student-email">{student.email}{student.gradeLevel ? ` - ${student.gradeLevel}` : ""}</span>
+            {student.studentCode && <code className="student-code-badge" dir="ltr">{student.studentCode}</code>}
             <button type="button" className="logout-button" onClick={() => setSelectedStudent(student)}>ملف الطالب</button>
             <button
               type="button"

@@ -7,7 +7,14 @@ export interface UserDoc {
   displayName: string;
   gradeLevel?: string;
   driveFolderId?: string;
+  studentCode?: string;
   activationPending?: boolean;
+  // بصمة الجهاز: primaryDeviceId هو الجهاز المعتمد، secondaryDeviceId جهاز إضافي مسموح به.
+  biometricLocked?: boolean;
+  primaryDeviceId?: string | null;
+  secondaryDeviceId?: string | null;
+  secondaryDeviceWindowOpen?: boolean;
+  // حقول قديمة (قبل نظام primary/secondary) — تُقرأ كبديل احتياطي فقط، لا تُكتب من جديد.
   deviceId?: string;
   deviceBoundAt?: number;
   phone?: string;

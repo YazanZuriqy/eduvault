@@ -113,3 +113,19 @@ export const uploadDriveImage = async (token: string, folderId: string, dataUrl:
   });
   return `https://drive.google.com/uc?export=view&id=${file.id}`;
 };
+
+export interface DriveFileEntry {
+  id: string;
+  name: string;
+  mimeType: string;
+}
+
+// يسرد الملفات/المجلدات الفرعية مباشرة داخل مجلد Drive معيّن، تُستخدم لبناء شجرة استكشاف تفاعلية.
+export const listDriveFolderChildren = async (token: string, folderId: string): Promise<DriveFileEntry[]> => {
+  const query = encodeURIComponent(`'${folderId}' in parents and trashed = false`);
+  const response = await driveRequest<{ files: DriveFileEntry[] }>(
+    token,
+    `https://www.googleapis.com/drive/v3/files?q=${query}&fields=files(id,name,mimeType)&orderBy=folder,name`,
+  );
+  return response.files;
+};

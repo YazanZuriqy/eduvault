@@ -242,3 +242,65 @@ body {
   .session-list li .logout-button { padding: 7px 10px; }
   .student-overview .student-report-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* Inline math+media field (QuizBuilder single flowing form) */
+.math-inline-field { display: flex; flex-direction: column; gap: 8px; position: relative; }
+.math-inline-label { color: #557069; font-size: 13px; }
+.math-inline-row { align-items: center; display: flex; gap: 8px; }
+.math-inline-input { background: #ffffff; border: 2px solid var(--ink); border-radius: 10px; color: var(--ink); flex: 1; font: inherit; padding: 12px 14px; }
+.math-inline-input:focus { border-color: var(--coral); outline: none; }
+.math-inline-actions { display: flex; flex-shrink: 0; gap: 6px; }
+.math-inline-icon { background: #ffffff; border: 2px solid var(--ink); border-radius: 8px; cursor: pointer; font-size: 16px; height: 40px; width: 40px; }
+.math-inline-icon.active { background: var(--ink); color: var(--paper); }
+.media-thumb-strip { display: flex; flex-wrap: wrap; gap: 8px; }
+.media-thumb { position: relative; }
+.media-thumb img { border: 1px solid #d8e0d3; border-radius: 8px; display: block; height: 64px; object-fit: cover; width: 64px; }
+.media-thumb button { background: var(--ink); border: 2px solid #ffffff; border-radius: 50%; color: #ffffff; cursor: pointer; font-size: 10px; height: 20px; line-height: 1; position: absolute; right: -6px; top: -6px; width: 20px; }
+.math-popover, .media-drawer { background: #ffffff; border: 1px solid #d8e0d3; border-radius: 12px; box-shadow: 0 12px 30px -18px #00000055; display: flex; flex-direction: column; gap: 12px; padding: 14px; position: relative; z-index: 5; }
+.math-popover-groups { display: flex; flex-wrap: wrap; gap: 4px; }
+.drive-quick-link { align-items: end; display: grid; gap: 10px; grid-template-columns: 1fr auto; }
+
+/* Quiz builder: single flowing form */
+.quiz-question-stream { display: flex; flex-direction: column; gap: 20px; }
+.quiz-question-card { background: var(--paper); border: 1px solid #d8e0d3; border-radius: 14px; display: flex; flex-direction: column; gap: 16px; padding: 18px; }
+.quiz-question-card-header { align-items: center; display: flex; justify-content: space-between; }
+.quiz-option-row { align-items: start; display: grid; gap: 10px; grid-template-columns: 1fr auto auto; }
+.quiz-option-correct { padding-top: 12px; white-space: nowrap; }
+
+/* Session manager (teacher) */
+.session-manager { display: flex; flex-direction: column; gap: 24px; }
+.session-grade-group { border-right: 3px solid var(--coral); padding-right: 14px; }
+.session-grade-title { font-size: 16px; margin: 0 0 12px; }
+.session-lesson-group { margin-bottom: 14px; }
+.session-lesson-title { color: #557069; font-size: 13px; margin: 0 0 8px; }
+
+/* Session detail panel (video/quiz/notes in unison) */
+.session-detail-panel { display: flex; flex-direction: column; gap: 16px; }
+
+/* Student dashboard: curriculum tree + account settings */
+.dashboard-header-actions { display: flex; gap: 10px; }
+.account-settings-panel { margin-bottom: 24px; }
+.curriculum-tree { display: flex; flex-direction: column; gap: 20px; }
+.curriculum-term { border-right: 3px solid var(--sky); padding-right: 14px; }
+.curriculum-term-title { color: #355b56; font-size: 17px; margin: 0 0 12px; }
+.curriculum-unit { margin-bottom: 14px; }
+.curriculum-unit-title { color: #557069; font-size: 13px; font-weight: 600; margin: 0 0 8px; }
+.curriculum-lesson-list { display: flex; flex-direction: column; gap: 8px; }
+.curriculum-lesson-row { align-items: center; background: var(--paper); border: 0; border-radius: 10px; cursor: pointer; display: flex; font: inherit; gap: 12px; justify-content: space-between; padding: 12px 16px; text-align: right; width: 100%; }
+.curriculum-lesson-row.locked { color: #90a29a; cursor: not-allowed; }
+.curriculum-lesson-chevron { color: #90a29a; }
+.curriculum-lesson > .session-detail-panel { background: #ffffff; border: 1px solid #d8e0d3; border-radius: 10px; margin-top: 8px; padding: 16px; }
+
+/* Student code + device status */
+.student-code-badge { background: var(--paper); border-radius: 6px; font-size: 12px; padding: 4px 8px; }
+.device-status-grid { display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+.device-status-row { background: var(--paper); border-radius: 8px; display: flex; flex-direction: column; font-size: 12px; gap: 4px; padding: 8px 10px; }
+
+/* Google Drive folder explorer */
+.drive-explorer { display: flex; flex-direction: column; gap: 10px; }
+.drive-tree { background: var(--paper); border-radius: 10px; max-height: 320px; overflow-y: auto; padding: 10px; }
+.drive-node-row { align-items: center; background: transparent; border: 0; cursor: pointer; display: flex; font: inherit; gap: 8px; padding: 6px 4px; text-align: right; width: 100%; }
+.drive-node-row:hover { background: #dfe7da; border-radius: 6px; }
+.drive-node-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drive-node-chevron { color: #90a29a; }
+

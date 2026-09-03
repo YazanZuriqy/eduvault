@@ -4,7 +4,7 @@ import {
   signOut,
   updatePassword,
 } from "firebase/auth";
-import { collection, deleteDoc, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, deleteDoc, deleteField, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb, getSecondaryAuth } from "@/utils/firebase";
 import type { StudentCredentialDoc, UserDoc, UserRole } from "@/types";
 
@@ -71,15 +71,50 @@ const getBrowserDeviceId = (): string => {
   return deviceId;
 };
 
+// نظام بصمة جهاز بمستويين: primaryDeviceId هو الجهاز المعتمد أساسًا، secondaryDeviceId جهاز إضافي
+// يُسمح به مرة واحدة عبر "نافذة سماح" يفتحها المعلّم. الحقول القديمة deviceId/deviceBoundAt (من نظام
+// سابق بجهاز واحد فقط) تُقرأ كبديل احتياطي للحسابات المُنشأة قبل هذا التحديث فلا تنقطع عنها الخدمة.
 const authorizeStudentDevice = async (userDoc: UserDoc): Promise<void> => {
   const deviceId = getBrowserDeviceId();
-  if (userDoc.deviceId && userDoc.deviceId !== deviceId) {
-    await signOut(getFirebaseAuth());
-    throw new Error("هذا الحساب مرتبط بجهاز آخر. اطلب من المعلّم تحرير الجهاز من ملفك.");
+  const primaryDeviceId = userDoc.primaryDeviceId ?? userDoc.deviceId ?? null;
+
+  if (!primaryDeviceId) {
+    await updateDoc(doc(getFirebaseDb(), "users", userDoc.uid), {
+      primaryDeviceId: deviceId,
+      biometricLocked: true,
+    });
+    return;
   }
-  if (!userDoc.deviceId) {
-    await updateDoc(doc(getFirebaseDb(), "users", userDoc.uid), { deviceId, deviceBoundAt: Date.now() });
+
+  if (primaryDeviceId === deviceId || userDoc.secondaryDeviceId === deviceId) return;
+
+  if (userDoc.secondaryDeviceWindowOpen && !userDoc.secondaryDeviceId) {
+    await updateDoc(doc(getFirebaseDb(), "users", userDoc.uid), {
+      secondaryDeviceId: deviceId,
+      secondaryDeviceWindowOpen: false,
+    });
+    return;
   }
+
+  await signOut(getFirebaseAuth());
+  throw new Error("هذا الحساب مرتبط بجهاز آخر. اطلب من المعلّم فكّ ارتباط الجهاز أو السماح بجهاز إضافي.");
+};
+
+// إجراء المعلّم: يزيل كل ربط أجهزة الطالب، فيُعتمد أول جهاز يسجّل الدخول تاليًا كجهاز أساسي جديد.
+export const unbindStudentDevice = async (studentUid: string): Promise<void> => {
+  await updateDoc(doc(getFirebaseDb(), "users", studentUid), {
+    biometricLocked: false,
+    primaryDeviceId: null,
+    secondaryDeviceId: null,
+    secondaryDeviceWindowOpen: false,
+    deviceId: deleteField(),
+    deviceBoundAt: deleteField(),
+  });
+};
+
+// إجراء المعلّم: يفتح نافذة سماح لمرة واحدة، يلتقطها أول دخول تالٍ من جهاز مختلف عن الجهاز الأساسي.
+export const allowAdditionalStudentDevice = async (studentUid: string): Promise<void> => {
+  await updateDoc(doc(getFirebaseDb(), "users", studentUid), { secondaryDeviceWindowOpen: true });
 };
 
 export const completeStudentActivation = async (newPassword: string): Promise<void> => {
@@ -89,20 +124,32 @@ export const completeStudentActivation = async (newPassword: string): Promise<vo
   await updateDoc(doc(getFirebaseDb(), "users", user.uid), { activationPending: false });
 };
 
+// يسمح للطالب بتغيير كلمة مروره الخاصة من إعدادات حسابه، عبر Firebase Auth مباشرة (بلا خادم).
+export const changeOwnPassword = async (newPassword: string): Promise<void> => {
+  const user = getFirebaseAuth().currentUser;
+  if (!user) throw new Error("يجب تسجيل الدخول أولاً.");
+  await updatePassword(user, newPassword);
+};
+
 export const fetchStudentCredential = async (studentId: string): Promise<StudentCredentialDoc | null> => {
   const snapshot = await getDoc(doc(getFirebaseDb(), "studentCredentials", studentId));
   return snapshot.exists() ? (snapshot.data() as StudentCredentialDoc) : null;
 };
 
-const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 
-// كلمة مرور عشوائية يولّدها المعلّم للطالب (بدون أحرف/أرقام متشابهة الشكل مثل 0/O أو 1/l).
-export const generateStudentPassword = (length = 10): string => {
-  const cryptoObj = window.crypto;
+const randomFromCharset = (charset: string, length: number): string => {
   const randomValues = new Uint32Array(length);
-  cryptoObj.getRandomValues(randomValues);
-  return Array.from(randomValues, (value) => PASSWORD_CHARS[value % PASSWORD_CHARS.length]).join("");
+  window.crypto.getRandomValues(randomValues);
+  return Array.from(randomValues, (value) => charset[value % charset.length]).join("");
 };
+
+// كلمة مرور مؤقتة يولّدها المعلّم للطالب، بصيغة يسهل نسخها/إملاؤها (Tmp@1234)، يستبدلها الطالب بنفسه
+// عند أول دخول عبر completeStudentActivation.
+export const generateStudentPassword = (): string => `Tmp@${randomFromCharset("0123456789", 4)}`;
+
+// رمز طالب قصير (6 محارف) يعرضه المعلّم في لوحته للتعرّف السريع على الطالب دون كشف بريده/كلمة مروره.
+export const generateStudentCode = (): string => randomFromCharset(CODE_CHARS, 6);
 
 interface CreateStudentInput {
   email: string;
@@ -114,7 +161,8 @@ interface CreateStudentInput {
   driveFolderId?: string;
 }
 
-// يُنشئ حساب الطالب عبر مثيل Firebase ثانوي منعزل كي تبقى جلسة المعلّم الحالية سليمة.
+// يُنشئ حساب الطالب عبر مثيل Firebase ثانوي منعزل كي تبقى جلسة المعلّم الحالية سليمة. يُهيّئ أيضًا
+// حقول بصمة الجهاز الأساسية (biometricLocked/primaryDeviceId/secondaryDeviceId) صراحةً منذ الإنشاء.
 export const createStudentAccount = async ({
   email,
   password,
@@ -127,6 +175,7 @@ export const createStudentAccount = async ({
   const secondaryAuth = getSecondaryAuth();
   try {
     const credential = await createUserWithEmailAndPassword(secondaryAuth, email, password);
+    const studentCode = generateStudentCode();
     const userDoc: UserDoc = {
       uid: credential.user.uid,
       email,
@@ -135,6 +184,10 @@ export const createStudentAccount = async ({
       phone,
       createdAt: Date.now(),
       activationPending: true,
+      studentCode,
+      biometricLocked: false,
+      primaryDeviceId: null,
+      secondaryDeviceId: null,
       ...(parentEmail ? { parentEmail } : {}),
       ...(gradeLevel ? { gradeLevel } : {}),
       ...(driveFolderId ? { driveFolderId } : {}),
@@ -181,6 +234,7 @@ export const translateFirebaseError = (code: string): string => {
     "auth/invalid-credential": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
     "auth/user-not-found": "لا يوجد حساب بهذا البريد الإلكتروني.",
     "auth/wrong-password": "كلمة المرور غير صحيحة.",
+    "auth/requires-recent-login": "لأسباب أمنية، سجّل الخروج ثم الدخول مجددًا قبل تغيير كلمة المرور.",
   };
 
   return map[code] ?? "تعذر إتمام العملية. حاول مرة أخرى.";

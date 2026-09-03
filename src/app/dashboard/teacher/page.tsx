@@ -18,6 +18,7 @@ import { logoutUser } from "@/utils/auth";
 import { useAuthUser } from "@/utils/useAuthUser";
 import QuizBuilder from "@/components/QuizBuilder";
 import StudentManager from "@/components/StudentManager";
+import SessionManager from "@/components/SessionManager";
 import type { SessionDoc, UserDoc } from "@/types";
 
 type SessionWithId = SessionDoc & { id: string };
@@ -268,25 +269,22 @@ const TeacherDashboardPage = () => {
 
         <article className="panel panel-wide">
           <h2>الجلسات المرتبطة ({sessions.length})</h2>
-          <ul className="session-list">
-            {sessions.map((session) => {
-              const student = students.find((entry) => entry.uid === session.studentId);
-              return (
-                <li key={session.id}>
-                  <span className="session-title">{session.videoTitle}</span>
-                  <span className="session-student">{student?.displayName ?? session.studentId}</span>
-                  <span className={session.quizPassed ? "badge badge-pass" : "badge badge-pending"}>{session.quizPassed ? "اجتاز الاختبار" : "بانتظار الاختبار"}</span>
-                  <button type="button" className="logout-button" onClick={() => {
-                    setSelectedStudentId(session.studentId); setVideoTitle(session.videoTitle); setDriveFileId(session.driveFileId); setEditingSessionId(session.id);
-                    setSessionTrack(session.curriculum?.track ?? "term"); setSessionTerm(session.curriculum?.term ?? "الفصل الأول"); setSessionUnit(session.curriculum?.unit ?? ""); setSessionLesson(session.curriculum?.lesson ?? "");
-                  }}>تعديل</button>
-                  <button type="button" className="logout-button" onClick={() => void handleCopySession(session)}>نسخ</button>
-                  <button type="button" className="logout-button" onClick={() => void handleDeleteSession(session.id)}>حذف</button>
-                </li>
-              );
-            })}
-            {sessions.length === 0 && <li className="empty-state">لم يتم ربط أي جلسات بعد.</li>}
-          </ul>
+          <SessionManager
+            sessions={sessions}
+            students={students}
+            onEdit={(session) => {
+              setSelectedStudentId(session.studentId);
+              setVideoTitle(session.videoTitle);
+              setDriveFileId(session.driveFileId);
+              setEditingSessionId(session.id);
+              setSessionTrack(session.curriculum?.track ?? "term");
+              setSessionTerm(session.curriculum?.term ?? "الفصل الأول");
+              setSessionUnit(session.curriculum?.unit ?? "");
+              setSessionLesson(session.curriculum?.lesson ?? "");
+            }}
+            onCopy={(session) => void handleCopySession(session)}
+            onDelete={(sessionId) => void handleDeleteSession(sessionId)}
+          />
         </article>
         </>}
 
