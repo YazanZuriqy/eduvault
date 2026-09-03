@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, doc, getDocs, limit, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDocs, limit, or, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
 import MathText from "@/components/MathText";
 import type { QuizDoc } from "@/types";
@@ -36,9 +36,11 @@ const QuizModal = ({ sessionId, onClose }: QuizModalProps) => {
 
   useEffect(() => {
     const loadQuiz = async () => {
+      // يدعم كلا المخططين: الاختبارات القديمة (sessionId واحد) والجديدة (sessionIds لكل طالب) معًا،
+      // كي تستمر الاختبارات المُنشأة قبل نظام "جلسة لكل طالب" بالعمل بلا أي ترحيل بيانات يدوي.
       const quizzesQuery = query(
         collection(getFirebaseDb(), "quizzes"),
-        where("sessionId", "==", sessionId),
+        or(where("sessionId", "==", sessionId), where("sessionIds", "array-contains", sessionId)),
         limit(1),
       );
       const snapshot = await getDocs(quizzesQuery);

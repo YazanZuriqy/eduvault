@@ -304,7 +304,7 @@ const TeacherDashboardPage = () => {
 
         {workspace === "quiz" && <article className="panel panel-wide">
           <h2>بناء اختبار جديد</h2>
-          <QuizBuilder sessions={sessions.map(({ id, videoTitle }) => ({ id, videoTitle }))} students={students} assignedStudentId={quizStudentId} />
+          <QuizBuilder sessions={sessions.map(({ id, videoTitle, studentId }) => ({ id, videoTitle, studentId }))} students={students} assignedStudentId={quizStudentId} />
         </article>
         }
 

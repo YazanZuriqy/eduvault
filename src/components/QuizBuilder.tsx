@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { addDoc, collection } from "firebase/firestore";
+import { useEffect, useState } from "react";
+import { addDoc, collection, deleteDoc, doc, onSnapshot, query, updateDoc, where } from "firebase/firestore";
 import { getFirebaseDb } from "@/utils/firebase";
 import MathInlineField from "@/components/MathInlineField";
+import QuizPreviewModal from "@/components/QuizPreviewModal";
 import type { QuizDoc, QuizMedia, QuizQuestion, UserDoc } from "@/types";
 
 interface QuizBuilderProps {
-  sessions: { id: string; videoTitle: string }[];
+  sessions: { id: string; videoTitle: string; studentId: string }[];
   students: UserDoc[];
   assignedStudentId?: string;
 }
@@ -15,6 +16,8 @@ interface QuizBuilderProps {
 interface QuestionDraft extends QuizQuestion {
   key: string;
 }
+
+type DraftWithId = QuizDoc & { id: string };
 
 const createEmptyQuestion = (): QuestionDraft => ({
   key: crypto.randomUUID(),
@@ -26,7 +29,6 @@ const createEmptyQuestion = (): QuestionDraft => ({
 // نموذج بناء اختبار واحد ومتدفّق رأسيًا: كل سؤال وكل خيار يظهر ضمن الصفحة نفسها بلا تبويبات
 // مخفية، ولكل صندوق كتابة أدوات الرموز الرياضية والوسائط الخاصة به ملاصقة له مباشرة.
 const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps) => {
-  const [sessionId, setSessionId] = useState("");
   const [questions, setQuestions] = useState<QuestionDraft[]>([createEmptyQuestion()]);
   const [quizType, setQuizType] = useState<"daily" | "comprehensive">("daily");
   const [track, setTrack] = useState<"foundation" | "term">("term");
@@ -35,16 +37,29 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
   const [lesson, setLesson] = useState("");
   const [title, setTitle] = useState("");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>(assignedStudentId ? [assignedStudentId] : []);
+  // خريطة (studentId -> sessionId): كل طالب مكلّف يختار جلسته الخاصة بدل جلسة مشتركة واحدة قد لا تخصه.
+  const [studentSessionMap, setStudentSessionMap] = useState<Record<string, string>>({});
   const [passThreshold, setPassThreshold] = useState(100);
   const [shuffleOptions, setShuffleOptions] = useState(false);
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [editingQuizId, setEditingQuizId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<DraftWithId[]>([]);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const activeStudentDriveFolderId =
     selectedStudentIds.length === 1
       ? students.find((student) => student.uid === selectedStudentIds[0])?.driveFolderId
       : undefined;
+
+  useEffect(() => {
+    const draftsQuery = query(collection(getFirebaseDb(), "quizzes"), where("status", "==", "draft"));
+    const unsubscribe = onSnapshot(draftsQuery, (snapshot) => {
+      setDrafts(snapshot.docs.map((entry) => ({ ...(entry.data() as QuizDoc), id: entry.id })));
+    });
+    return unsubscribe;
+  }, []);
 
   const updateQuestion = (key: string, patch: Partial<QuestionDraft>) => {
     setQuestions((prev) => prev.map((item) => (item.key === key ? { ...item, ...patch } : item)));
@@ -97,40 +112,102 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
     });
   };
 
-  const handleSave = async () => {
+  const toggleStudent = (studentId: string, checked: boolean) => {
+    setSelectedStudentIds((previous) => (checked ? [...previous, studentId] : previous.filter((id) => id !== studentId)));
+    if (!checked) {
+      setStudentSessionMap((previous) => {
+        const next = { ...previous };
+        delete next[studentId];
+        return next;
+      });
+    }
+  };
+
+  const resetForm = () => {
+    setQuestions([createEmptyQuestion()]);
+    setTitle("");
+    setSelectedStudentIds([]);
+    setStudentSessionMap({});
+    setUnit("");
+    setLesson("");
+    setPassThreshold(100);
+    setShuffleOptions(false);
+    setShuffleQuestions(false);
+    setEditingQuizId(null);
+  };
+
+  const handleLoadDraft = (draft: DraftWithId) => {
+    setEditingQuizId(draft.id);
+    setTitle(draft.title ?? "");
+    setQuizType(draft.type ?? "daily");
+    setTrack(draft.curriculum?.track ?? "term");
+    setTerm(draft.curriculum?.term ?? "الفصل الأول");
+    setUnit(draft.curriculum?.unit ?? "");
+    setLesson(draft.curriculum?.lesson ?? "");
+    setSelectedStudentIds(draft.studentIds ?? []);
+
+    const map: Record<string, string> = {};
+    (draft.studentIds ?? []).forEach((studentId, index) => {
+      const sessionId = draft.sessionIds?.[index];
+      if (sessionId) map[studentId] = sessionId;
+    });
+    setStudentSessionMap(map);
+
+    setPassThreshold(draft.passThreshold ?? 100);
+    setShuffleOptions(draft.shuffleOptions ?? false);
+    setShuffleQuestions(draft.shuffleQuestions ?? false);
+    setQuestions(
+      draft.questions.length > 0
+        ? draft.questions.map((item) => ({ ...item, key: crypto.randomUUID() }))
+        : [createEmptyQuestion()],
+    );
+    setFeedback("تم تحميل المسودة — عدّل ما تشاء ثم احفظ أو انشر.");
+  };
+
+  const handleDeleteDraft = async (draftId: string) => {
+    if (!window.confirm("حذف هذه المسودة نهائيًا؟")) return;
+    await deleteDoc(doc(getFirebaseDb(), "quizzes", draftId));
+    if (editingQuizId === draftId) resetForm();
+  };
+
+  const handleSave = async (status: "draft" | "published") => {
     setFeedback(null);
 
-    if (!sessionId) {
-      setFeedback("يرجى اختيار الجلسة المرتبطة بالاختبار.");
-      return;
-    }
+    if (status === "published") {
+      if (selectedStudentIds.length === 0) {
+        setFeedback("حدّد طالبًا واحدًا على الأقل لتكليفهم بالاختبار.");
+        return;
+      }
 
-    if (selectedStudentIds.length === 0) {
-      setFeedback("حدّد طالبًا واحدًا على الأقل لتكليفهم بالاختبار.");
-      return;
-    }
+      if (selectedStudentIds.some((studentId) => !studentSessionMap[studentId])) {
+        setFeedback("يرجى اختيار جلسة كل طالب محدد قبل النشر.");
+        return;
+      }
 
-    const hasInvalidQuestion = questions.some(
-      (item) =>
-        !item.question.trim() ||
-        item.options.some((option) => !option.trim()) ||
-        !item.correctAnswer.trim() ||
-        !item.options.includes(item.correctAnswer),
-    );
+      const hasInvalidQuestion = questions.some(
+        (item) =>
+          !item.question.trim() ||
+          item.options.some((option) => !option.trim()) ||
+          !item.correctAnswer.trim() ||
+          !item.options.includes(item.correctAnswer),
+      );
 
-    if (hasInvalidQuestion) {
-      setFeedback("يرجى تعبئة كل الأسئلة والخيارات وتحديد إجابة صحيحة لكل سؤال.");
-      return;
+      if (hasInvalidQuestion) {
+        setFeedback("يرجى تعبئة كل الأسئلة والخيارات وتحديد إجابة صحيحة لكل سؤال.");
+        return;
+      }
     }
 
     setIsSaving(true);
 
     try {
+      const sessionIds = selectedStudentIds.map((studentId) => studentSessionMap[studentId]).filter(Boolean);
       const quiz: Omit<QuizDoc, "quizId"> = {
-        sessionId,
+        sessionIds,
         title: title.trim() || undefined,
         studentIds: selectedStudentIds,
         type: quizType,
+        status,
         curriculum: {
           track,
           ...(track === "term" ? { term } : {}),
@@ -151,17 +228,19 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         })),
       };
 
-      await addDoc(collection(getFirebaseDb(), "quizzes"), quiz);
+      if (editingQuizId) {
+        await updateDoc(doc(getFirebaseDb(), "quizzes", editingQuizId), quiz);
+      } else {
+        const reference = await addDoc(collection(getFirebaseDb(), "quizzes"), quiz);
+        if (status === "draft") setEditingQuizId(reference.id);
+      }
 
-      setQuestions([createEmptyQuestion()]);
-      setTitle("");
-      setSelectedStudentIds([]);
-      setUnit("");
-      setLesson("");
-      setPassThreshold(100);
-      setShuffleOptions(false);
-      setShuffleQuestions(false);
-      setFeedback("تم حفظ الاختبار بنجاح.");
+      if (status === "published") {
+        resetForm();
+        setFeedback("تم نشر الاختبار بنجاح.");
+      } else {
+        setFeedback("تم حفظ المسودة بنجاح. يمكنك متابعتها لاحقًا من قائمة المسودات أدناه.");
+      }
     } catch {
       setFeedback("تعذر حفظ الاختبار. حاول مرة أخرى.");
     } finally {
@@ -171,6 +250,26 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
 
   return (
     <div className="quiz-builder">
+      {drafts.length > 0 && (
+        <div className="pending-invites quiz-drafts-list">
+          <h3>مسودات محفوظة ({drafts.length})</h3>
+          <ul className="student-list">
+            {drafts.map((draft) => (
+              <li key={draft.id} className="list-row">
+                <div className="list-row-info">
+                  <span className="student-name">{draft.title || "اختبار بلا عنوان"}</span>
+                  <span className="student-email">{draft.questions.length} سؤال</span>
+                </div>
+                <div className="list-row-actions">
+                  <button type="button" className="logout-button" onClick={() => handleLoadDraft(draft)}>متابعة التحرير</button>
+                  <button type="button" className="logout-button" onClick={() => void handleDeleteDraft(draft.id)}>حذف</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div className="quiz-type-tabs" aria-label="نوع الاختبار">
         <button type="button" className={quizType === "daily" ? "quiz-tab active" : "quiz-tab"} onClick={() => setQuizType("daily")}>
           اختبار يومي
@@ -213,18 +312,6 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         </label>
       </div>
 
-      <label className="field">
-        <span>الجلسة المرتبطة</span>
-        <select value={sessionId} onChange={(event) => setSessionId(event.target.value)}>
-          <option value="">اختر جلسة</option>
-          {sessions.map((session) => (
-            <option key={session.id} value={session.id}>
-              {session.videoTitle}
-            </option>
-          ))}
-        </select>
-      </label>
-
       <div className="quiz-settings-grid">
         <label className="field">
           <span>نسبة النجاح المطلوبة %</span>
@@ -246,27 +333,42 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         </label>
       </div>
 
-      <fieldset className="student-assignment">
-        <legend>الطلاب المكلّفون بالاختبار</legend>
-        {students.map((student) => (
-          <label key={student.uid} className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={selectedStudentIds.includes(student.uid)}
-              onChange={(event) =>
-                setSelectedStudentIds((previous) =>
-                  event.target.checked
-                    ? [...previous, student.uid]
-                    : previous.filter((studentId) => studentId !== student.uid),
-                )
-              }
-            />
-            <span>
-              {student.displayName}
-              {student.gradeLevel ? ` - ${student.gradeLevel}` : ""}
-            </span>
-          </label>
-        ))}
+      <fieldset className="student-assignment student-assignment-sessions">
+        <legend>الطلاب المكلّفون، وجلسة كل طالب</legend>
+        <p className="quiz-hint">
+          حدّد أولًا الطلاب المكلّفين بهذا الاختبار، ثم اختر لكل طالب الجلسة الخاصة به التي سيظهر
+          الاختبار مرتبطًا بها — كل طالب يرى جلساته فقط، فلا يحدث خلط بين طالب وجلسة طالب آخر.
+        </p>
+        {students.map((student) => {
+          const studentSessions = sessions.filter((session) => session.studentId === student.uid);
+          const isSelected = selectedStudentIds.includes(student.uid);
+
+          return (
+            <div key={student.uid} className="student-assignment-row">
+              <label className="checkbox-field">
+                <input type="checkbox" checked={isSelected} onChange={(event) => toggleStudent(student.uid, event.target.checked)} />
+                <span>
+                  {student.displayName}
+                  {student.gradeLevel ? ` - ${student.gradeLevel}` : ""}
+                </span>
+              </label>
+              {isSelected && studentSessions.length > 0 && (
+                <select
+                  value={studentSessionMap[student.uid] ?? ""}
+                  onChange={(event) => setStudentSessionMap((previous) => ({ ...previous, [student.uid]: event.target.value }))}
+                >
+                  <option value="">اختر جلسة هذا الطالب</option>
+                  {studentSessions.map((session) => (
+                    <option key={session.id} value={session.id}>
+                      {session.videoTitle}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {isSelected && studentSessions.length === 0 && <span className="quiz-hint">لا توجد جلسات لهذا الطالب بعد.</span>}
+            </div>
+          );
+        })}
         {students.length === 0 && <p className="empty-state">لا يوجد طلاب مسجّلون بعد.</p>}
       </fieldset>
 
@@ -381,9 +483,21 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
 
       {feedback && <p className="form-feedback">{feedback}</p>}
 
-      <button type="button" className="primary-button" onClick={() => void handleSave()} disabled={isSaving}>
-        {isSaving ? "جارٍ الحفظ..." : "حفظ الاختبار"}
-      </button>
+      <div className="quiz-builder-actions">
+        <button type="button" className="logout-button" onClick={() => setIsPreviewOpen(true)}>
+          معاينة الاختبار
+        </button>
+        <button type="button" className="logout-button" onClick={() => void handleSave("draft")} disabled={isSaving}>
+          {isSaving ? "جارٍ الحفظ..." : "حفظ كمسودة"}
+        </button>
+        <button type="button" className="primary-button" onClick={() => void handleSave("published")} disabled={isSaving}>
+          {isSaving ? "جارٍ النشر..." : "نشر الاختبار للطلاب"}
+        </button>
+      </div>
+
+      {isPreviewOpen && (
+        <QuizPreviewModal title={title} questions={questions} onClose={() => setIsPreviewOpen(false)} />
+      )}
     </div>
   );
 };

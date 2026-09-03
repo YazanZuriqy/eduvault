@@ -77,8 +77,10 @@ service cloud.firestore {
     }
     match /quizzes/{quizId} {
       allow write: if isTeacher();
+      // الطلاب لا يرون أبدًا اختبارات بحالة "مسودة" (status == 'draft')؛ المعلّم يرى كل شيء دومًا.
       allow read: if isTeacher() || (
-        request.auth != null && (
+        request.auth != null &&
+        (!('status' in resource.data) || resource.data.status != 'draft') && (
           !('studentIds' in resource.data) ||
           resource.data.studentIds.hasAny([request.auth.uid])
         )

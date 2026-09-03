@@ -101,7 +101,12 @@ export interface QuizQuestion {
 
 export interface QuizDoc {
   quizId: string;
-  sessionId: string;
+  // حقل قديم من التصميم الأول (اختبار واحد = جلسة واحدة)؛ يُقرأ كبديل احتياطي فقط للاختبارات
+  // المُنشأة قبل نظام "جلسة لكل طالب"، ولا يُكتب في اختبارات جديدة.
+  sessionId?: string;
+  // خريطة جلسة كل طالب في هذا الاختبار (studentId -> sessionId)، تسمح بتكليف طلاب مختلفين
+  // بجلساتهم الخاصة ضمن الاختبار نفسه بدل جلسة مشتركة واحدة قد لا تخص كل الطلاب المكلّفين.
+  sessionIds?: string[];
   studentIds?: string[];
   title?: string;
   type?: "daily" | "comprehensive";
@@ -117,6 +122,9 @@ export interface QuizDoc {
   passThreshold?: number;
   shuffleOptions?: boolean;
   shuffleQuestions?: boolean;
+  // مسودة غير منشورة (لا يراها الطلاب إطلاقًا) مقابل منشورة؛ الاختبارات القديمة بلا هذا الحقل
+  // تُعامل كمنشورة تلقائيًا حفاظًا على التوافق.
+  status?: "draft" | "published";
 }
 
 export interface NoteDoc {
