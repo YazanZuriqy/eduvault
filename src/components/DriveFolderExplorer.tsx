@@ -92,11 +92,11 @@ const DriveFolderExplorer = ({ rootFolderId }: DriveFolderExplorerProps) => {
     return <p className="quiz-hint">أضف Google Client ID لتفعيل استكشاف ملفات Drive الخاصة بالطالب.</p>;
   }
 
-  return (
+    return (
     <div className="drive-explorer">
       {!token && (
-        <button type="button" className="logout-button" onClick={() => void handleConnect()} disabled={isLoading}>
-          {isLoading ? "جارٍ الاتصال..." : "ربط Google Drive لعرض ملفات الطالب"}
+        <button type="button" className="logout-button drive-connect-btn" onClick={() => void handleConnect()} disabled={isLoading}>
+          {isLoading ? "جارٍ الاتصال..." : "اضغط لاستعراض ملفات Google Drive"}
         </button>
       )}
 

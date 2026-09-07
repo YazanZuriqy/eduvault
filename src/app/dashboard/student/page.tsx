@@ -1,6 +1,6 @@
 "use client";
 
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { collection, onSnapshot, orderBy, query, where } from "firebase/firestore";
@@ -8,6 +8,7 @@ import { getFirebaseDb } from "@/utils/firebase";
 import { changeOwnPassword, logoutUser } from "@/utils/auth";
 import { useAuthUser } from "@/utils/useAuthUser";
 import SessionDetailPanel from "@/components/SessionDetailPanel";
+import DriveFolderExplorer from "@/components/DriveFolderExplorer";
 import type { QuizDoc, SessionDoc } from "@/types";
 
 type SessionWithId = SessionDoc & { id: string };
@@ -29,9 +30,18 @@ interface TermNode {
 
 // يبني شجرة منهجية حقيقية بثلاثة مستويات (فصل/تأسيس ← وحدة ← درس) بدل تسمية مسطّحة واحدة،
 // مع الحفاظ على ترتيب الظهور الأول لكل مستوى كما أنشأه المعلّم.
+const CIRCLE_R = 54;
+const CIRCLE_C = 2 * Math.PI * CIRCLE_R;
+
 const buildCurriculumTree = (sessions: SessionWithId[]): TermNode[] => {
   const termOrder: string[] = [];
-  const terms: Record<string, { units: Record<string, { unitOrder: string[]; lessons: Record<string, LessonNode> } & { lessonOrder: string[] }> ; unitOrder: string[] }> = {};
+  const terms: Record<
+    string,
+    {
+      units: Record<string, { unitOrder: string[]; lessonOrder: string[]; lessons: Record<string, LessonNode> }>;
+      unitOrder: string[];
+    }
+  > = {};
 
   sessions.forEach((session) => {
     const curriculum = session.curriculum;
@@ -43,28 +53,26 @@ const buildCurriculumTree = (sessions: SessionWithId[]): TermNode[] => {
       terms[termLabel] = { units: {}, unitOrder: [] };
       termOrder.push(termLabel);
     }
-    const term = terms[termLabel];
+        const termNode = terms[termLabel];
 
-    if (!term.units[unitLabel]) {
-      term.units[unitLabel] = { unitOrder: [], lessonOrder: [], lessons: {} };
-      term.unitOrder.push(unitLabel);
+    if (!termNode.units[unitLabel]) {
+      termNode.units[unitLabel] = { unitOrder: [], lessonOrder: [], lessons: {} };
+      termNode.unitOrder.push(unitLabel);
     }
-    const unit = term.units[unitLabel];
+    const unitNode = termNode.units[unitLabel];
 
-    if (!unit.lessons[lessonLabel]) {
-      unit.lessons[lessonLabel] = { label: lessonLabel, sessions: [] };
-      unit.lessonOrder.push(lessonLabel);
+    if (!unitNode.lessons[lessonLabel]) {
+      unitNode.lessons[lessonLabel] = { label: lessonLabel, sessions: [] };
+      unitNode.lessonOrder.push(lessonLabel);
     }
-    unit.lessons[lessonLabel].sessions.push(session);
+    unitNode.lessons[lessonLabel].sessions.push(session);
   });
 
-  return termOrder.map((termLabel) => ({
-    label: termLabel,
-    units: terms[termLabel].unitOrder.map((unitLabel) => ({
-      label: unitLabel,
-      lessons: terms[termLabel].units[unitLabel].lessonOrder.map(
-        (lessonLabel) => terms[termLabel].units[unitLabel].lessons[lessonLabel],
-      ),
+    return termOrder.map((tl) => ({
+    label: tl,
+    units: terms[tl].unitOrder.map((ul) => ({
+      label: ul,
+      lessons: terms[tl].units[ul].lessonOrder.map((ll) => terms[tl].units[ul].lessons[ll]),
     })),
   }));
 };
@@ -78,8 +86,9 @@ const StudentDashboardPage = () => {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
+        const [settingsMessage, setSettingsMessage] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const progressCircleRef = useRef<SVGCircleElement | null>(null);
 
   useEffect(() => {
     if (!isLoading && (!firebaseUser || userDoc?.role !== "student")) {
@@ -151,21 +160,28 @@ const StudentDashboardPage = () => {
   ];
   const curriculumTree = buildCurriculumTree(sessions);
 
+    // Circular-progress geometry
+  const progressPct = sessions.length ? Math.round((completedSessions / sessions.length) * 100) : 0;
+  const strokeDashoffset = CIRCLE_C - (CIRCLE_C * progressPct) / 100;
+
+  // Drive root folder for this student — read directly from userDoc (no hook needed)
+  const studentDriveFolderId: string | null = userDoc.driveFolderId ?? null;
+
   return (
-    <main className="dashboard-shell">
-      <header className="dashboard-header">
+    <main className="student-dark-shell">
+      <header className="student-dark-header">
         <div>
-          <p className="dashboard-eyebrow">STUDENT DASHBOARD</p>
-          <h1>مرحبًا، {userDoc.displayName}</h1>
+          <p className="student-eyebrow">STUDENT DASHBOARD</p>
+          <h1 className="student-heading">مرحبًا، {userDoc.displayName}</h1>
         </div>
         <div className="dashboard-header-actions">
-          <Link href="/checkout" className="logout-button">الاشتراك المميّز</Link>
-          <button type="button" className="logout-button" onClick={() => setIsSettingsOpen((previous) => !previous)}>
+          <Link href="/checkout" className="student-btn-outline">الاشتراك المميّز</Link>
+          <button type="button" className="student-btn-outline" onClick={() => setIsSettingsOpen((previous) => !previous)}>
             إعدادات الحساب
           </button>
           <button
             type="button"
-            className="logout-button"
+            className="student-btn-outline"
             onClick={async () => {
               await logoutUser();
               router.replace("/auth");
@@ -178,17 +194,17 @@ const StudentDashboardPage = () => {
 
       {/* شارة حالة الاشتراك المميّز: تُعرض فقط للطلاب الذين لديهم اشتراك فعلي وغير منتهٍ (studentPremiumExpiresAt)،
           وليس لكل الطلاب بشكل ثابت، كي لا تُظهر حالة دفع وهمية لمن لم يشترك فعلًا. */}
-      {userDoc.studentPremiumExpiresAt && userDoc.studentPremiumExpiresAt > Date.now() && (
-        <div className="premium-status-card bg-[var(--ink)] text-[var(--paper)] backdrop-blur-md border border-lime-400/30 shadow-lg px-4 py-3 rounded-xl mb-6">
+                  {userDoc.studentPremiumExpiresAt && userDoc.studentPremiumExpiresAt > Date.now() ? (
+        <div className="student-premium-badge">
           <p><strong>نوع الباقة الحالية:</strong> باقة التميّز السنوية للرياضيات 🎓</p>
           <p><strong>قيمة الاشتراك:</strong> 20 دينار أردني / سنوياً 🇯🇴</p>
           <p><strong>حالة الحساب:</strong> حساب نَشِط ومحمّي بالبصمة 🔐</p>
         </div>
-      )}
+      ) : null}
 
-      {isSettingsOpen && (
-        <section className="panel account-settings-panel">
-          <h2>تغيير كلمة المرور</h2>
+            {isSettingsOpen && (
+        <section className="student-dark-card account-settings-panel">
+          <h2 className="student-card-title">تغيير كلمة المرور</h2>
           <form className="link-form" onSubmit={(event) => void handleChangePassword(event)}>
             <label className="field">
               <span>كلمة المرور الجديدة</span>
@@ -206,23 +222,70 @@ const StudentDashboardPage = () => {
         </section>
       )}
 
-      <section className="dashboard-grid">
-        <article className="panel panel-wide student-overview">
-          <div><p className="dashboard-eyebrow">LEARNING STATUS</p><h2>مسار إنجازك</h2></div>
-          <div className="student-report-grid">
-            <div><strong>{sessions.length}</strong><span>إجمالي الجلسات</span></div>
-            <div><strong>{viewedSessions}</strong><span>تمت مشاهدتها</span></div>
-            <div><strong>{completedSessions}</strong><span>تم اجتيازها</span></div>
-            <div><strong>{sessions.length ? Math.round((completedSessions / sessions.length) * 100) : 0}%</strong><span>الإنجاز</span></div>
+            <section className="student-dashboard-grid">
+
+        {/* ── Animated Circular Progress Card ── */}
+        <article className="student-dark-card panel-wide student-progress-card">
+          <div className="student-progress-inner">
+            <div className="student-progress-ring-wrap">
+              <svg width="136" height="136" viewBox="0 0 136 136" className="student-progress-svg" aria-hidden="true">
+                <circle cx="68" cy="68" r={CIRCLE_R} fill="none" stroke="#1e3a2f" strokeWidth="10" />
+                <circle
+                  ref={progressCircleRef}
+                  cx="68"
+                  cy="68"
+                  r={CIRCLE_R}
+                  fill="none"
+                  stroke="#d4ef58"
+                  strokeWidth="10"
+                  strokeLinecap="round"
+                  strokeDasharray={CIRCLE_C}
+                  strokeDashoffset={strokeDashoffset}
+                  transform="rotate(-90 68 68)"
+                  style={{ transition: "stroke-dashoffset 1.2s cubic-bezier(0.34,1.56,0.64,1)" }}
+                />
+              </svg>
+              <div className="student-progress-pct-label">
+                <span className="student-progress-pct">{progressPct}%</span>
+                <span className="student-progress-pct-sub">إنجاز</span>
+              </div>
+            </div>
+            <div className="student-progress-stats">
+              <p className="student-eyebrow">LEARNING STATUS</p>
+              <h2 className="student-card-title">مسار إنجازك</h2>
+              <div className="student-stat-grid">
+                <div className="student-stat-cell"><strong>{sessions.length}</strong><span>إجمالي الجلسات</span></div>
+                <div className="student-stat-cell"><strong>{viewedSessions}</strong><span>تمت مشاهدتها</span></div>
+                <div className="student-stat-cell"><strong>{completedSessions}</strong><span>تم اجتيازها</span></div>
+                <div className="student-stat-cell student-stat-cell--accent"><strong>{progressPct}%</strong><span>معدل الإنجاز</span></div>
+              </div>
+            </div>
           </div>
         </article>
-        {notifications.length > 0 && <article className="panel panel-wide notification-panel">
-          <h2>إشعارات جديدة</h2>
-          <ul>{notifications.map((notification) => <li key={notification}>{notification}</li>)}</ul>
-        </article>}
 
-        <article className="panel panel-wide">
-          <h2>جلساتي حسب المسار الدراسي</h2>
+        {notifications.length > 0 && (
+          <article className="student-dark-card panel-wide student-notification-card">
+            <h2 className="student-card-title">إشعارات جديدة</h2>
+            <ul className="student-notification-list">
+              {notifications.map((notification) => (
+                <li key={notification} className="student-notification-item">{notification}</li>
+              ))}
+            </ul>
+          </article>
+        )}
+
+        {/* ── Real-Time Drive Folder Explorer ── */}
+        {studentDriveFolderId && (
+          <article className="student-dark-card panel-wide">
+            <p className="student-eyebrow">GOOGLE DRIVE</p>
+            <h2 className="student-card-title">مستكشف ملفاتي الدراسية</h2>
+            <p className="student-drive-hint">استعرض مجلداتك: الدوسيات، أوراق العمل، الفيديوهات — مباشرةً من Google Drive.</p>
+            <DriveFolderExplorer rootFolderId={studentDriveFolderId} />
+          </article>
+        )}
+
+        <article className="student-dark-card panel-wide">
+          <h2 className="student-card-title">جلساتي حسب المسار الدراسي</h2>
           <div className="curriculum-tree">
             {curriculumTree.map((term) => (
               <section key={term.label} className="curriculum-term">
@@ -231,19 +294,15 @@ const StudentDashboardPage = () => {
                   <div key={unit.label} className="curriculum-unit">
                     <p className="curriculum-unit-title">{unit.label}</p>
                     <div className="curriculum-lesson-list">
-                      {unit.lessons.map((lesson) =>
+                                            {unit.lessons.map((lesson) =>
                         lesson.sessions.map((session) => {
-                          const index = sessions.findIndex((entry) => entry.id === session.id);
-                          const previousSession = index > 0 ? sessions[index - 1] : null;
-                          const isLocked = Boolean(previousSession && !previousSession.quizPassed);
                           const isExpanded = expandedSessionId === session.id;
-
                           return (
                             <div key={session.id} className="curriculum-lesson">
                               <button
                                 type="button"
-                                className={isLocked ? "curriculum-lesson-row locked" : "curriculum-lesson-row"}
-                                disabled={isLocked}
+                                className="curriculum-lesson-row student-lesson-row"
+                                disabled={false}
                                 onClick={() => setExpandedSessionId(isExpanded ? null : session.id)}
                               >
                                 <span className="session-title">{lesson.label}</span>
@@ -251,24 +310,20 @@ const StudentDashboardPage = () => {
                                   className={
                                     session.quizPassed
                                       ? "badge badge-pass"
-                                      : isLocked
-                                        ? "badge badge-locked"
-                                        : session.watchedAt
-                                          ? "badge badge-pending"
-                                          : "badge badge-locked"
+                                      : session.watchedAt
+                                        ? "badge badge-pending"
+                                        : "badge badge-locked"
                                   }
                                 >
-                                  {isLocked
-                                    ? "مقفلة حتى اجتياز الجلسة السابقة"
-                                    : session.quizPassed
-                                      ? "مكتملة"
-                                      : session.watchedAt
-                                        ? "تمت المشاهدة"
-                                        : "لم تُشاهد"}
+                                  {session.quizPassed
+                                    ? "مكتملة"
+                                    : session.watchedAt
+                                      ? "تمت المشاهدة"
+                                      : "لم تُشاهد"}
                                 </span>
-                                {!isLocked && <span className="curriculum-lesson-chevron">{isExpanded ? "▾" : "◂"}</span>}
+                                <span className="curriculum-lesson-chevron">{isExpanded ? "▾" : "◂"}</span>
                               </button>
-                              {isExpanded && !isLocked && (
+                              {isExpanded && (
                                 <SessionDetailPanel
                                   session={session}
                                   studentId={userDoc.uid}

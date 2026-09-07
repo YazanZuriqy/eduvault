@@ -220,8 +220,11 @@ body {
 .quiz-result { display: flex; flex-direction: column; gap: 12px; }
 
 /* Math text rendering (static, read-only) */
-.math-text-render { direction: ltr; display: inline-block; unicode-bidi: isolate; }
+/* direction: ltr kept so MathLive math-span renders L-to-R; Arabic plain-text
+   children each carry their own dir="rtl" via inline style (MathText.tsx). */
+.math-text-render { display: inline; unicode-bidi: isolate; vertical-align: middle; }
 .math-text-image { border-radius: 10px; display: block; margin-top: 10px; max-width: 100%; }
+.math-text-inline-math { display: inline-block; direction: ltr; }
 
 /* Quiz builder */
 .quiz-builder { display: flex; flex-direction: column; gap: 20px; }
@@ -360,4 +363,268 @@ body {
 .drive-node-row:hover { background: #dfe7da; border-radius: 6px; }
 .drive-node-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .drive-node-chevron { color: #90a29a; }
+
+/* =========================================================================
+   STUDENT DASHBOARD — Cinematic Dark Theme (Phase 22)
+   ========================================================================= */
+
+/* ── Arabic text input: RTL spacing fix ── */
+.arabic-text-field {
+  direction: rtl;
+  text-align: right;
+  white-space: pre-wrap;
+  word-spacing: 0.1rem;
+  unicode-bidi: plaintext;
+}
+
+/* ── Shell ── */
+.student-dark-shell {
+  background: radial-gradient(ellipse 100% 60% at 50% -10%, #0d2b1e 0%, #060f0b 60%, #030808 100%);
+  min-height: 100vh;
+  padding: clamp(20px, 5vw, 52px);
+  position: relative;
+  overflow: hidden;
+  color: #dff0e8;
+}
+.student-dark-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(38rem 28rem at 10% 15%, #84efb822, transparent 60%),
+    radial-gradient(30rem 22rem at 90% 80%, #a3f75a1a, transparent 60%),
+    radial-gradient(24rem 18rem at 55% 50%, #22f0801a, transparent 65%);
+  pointer-events: none;
+  z-index: 0;
+  animation: bg-float 32s ease-in-out infinite alternate;
+}
+
+/* ── Header ── */
+.student-dark-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(164, 240, 100, 0.12);
+  margin-bottom: 32px;
+  padding-bottom: 20px;
+}
+.student-eyebrow {
+  color: #84efb8;
+  font: 11px var(--font-space-grotesk), sans-serif;
+  letter-spacing: 0.18em;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+}
+.student-heading {
+  font-size: clamp(22px, 3vw, 32px);
+  margin: 0;
+  color: #e8faf0;
+}
+.student-btn-outline {
+  background: transparent;
+  border: 1px solid rgba(164, 240, 100, 0.28);
+  border-radius: 10px;
+  color: #b5efcc;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 10px 18px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.student-btn-outline:hover {
+  background: rgba(164, 240, 100, 0.08);
+  border-color: rgba(164, 240, 100, 0.55);
+}
+
+/* ── Premium badge ── */
+.student-premium-badge {
+  position: relative;
+  z-index: 2;
+  background: rgba(16, 35, 25, 0.75);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(212, 239, 88, 0.22);
+  border-radius: 16px;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  box-shadow: 0 8px 32px -12px #000000aa, 0 0 0 1px rgba(212,239,88,0.08) inset;
+}
+.student-premium-badge p { margin: 4px 0; font-size: 13px; color: #c8e8d2; }
+.student-premium-badge strong { color: #d4ef58; }
+
+/* ── Cards ── */
+.student-dark-card {
+  position: relative;
+  z-index: 2;
+  background: rgba(15, 35, 24, 0.60);
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  border: 1px solid rgba(164, 240, 100, 0.14);
+  border-radius: 20px;
+  box-shadow: 0 24px 56px -24px #00000099, 0 0 0 1px rgba(164,240,100,0.06) inset;
+  padding: 26px;
+}
+.student-card-title {
+  font-size: 18px;
+  margin: 0 0 18px;
+  color: #e4f7ec;
+}
+
+/* ── Dashboard grid ── */
+.student-dashboard-grid {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  gap: 24px;
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* ── Circular progress card ── */
+.student-progress-card { overflow: visible; }
+.student-progress-inner {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  flex-wrap: wrap;
+}
+.student-progress-ring-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 136px;
+  height: 136px;
+}
+.student-progress-svg { display: block; }
+.student-progress-pct-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.student-progress-pct {
+  font: 700 28px/1 var(--font-space-grotesk), sans-serif;
+  color: #d4ef58;
+  text-shadow: 0 0 12px rgba(212,239,88,0.5);
+}
+.student-progress-pct-sub {
+  font-size: 11px;
+  color: #84efb8;
+  margin-top: 4px;
+  letter-spacing: 0.1em;
+}
+.student-progress-stats { flex: 1; min-width: 200px; }
+
+/* ── Stat grid inside progress card ── */
+.student-stat-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 14px;
+}
+.student-stat-cell {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(164, 240, 100, 0.10);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  padding: 12px 10px;
+  gap: 4px;
+}
+.student-stat-cell strong {
+  font: 700 22px/1 var(--font-space-grotesk), sans-serif;
+  color: #e4f7ec;
+}
+.student-stat-cell span {
+  font-size: 11px;
+  color: #7ab89a;
+}
+.student-stat-cell--accent strong {
+  color: #d4ef58;
+  text-shadow: 0 0 10px rgba(212,239,88,0.4);
+}
+
+/* ── Notifications ── */
+.student-notification-card { background: rgba(18, 38, 18, 0.70); border-color: rgba(212,190,88,0.22); }
+.student-notification-list { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.student-notification-item {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(212,190,88,0.25);
+  border-radius: 999px;
+  color: #e8d98a;
+  font-size: 13px;
+  padding: 8px 14px;
+}
+
+/* ── Drive hint ── */
+.student-drive-hint { color: #7ab89a; font-size: 13px; margin: 0 0 12px; }
+
+/* Override drive-tree inside dark card */
+.student-dark-card .drive-tree {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(164,240,100,0.10);
+  max-height: 380px;
+}
+.student-dark-card .drive-node-row { color: #c8e8d2; }
+.student-dark-card .drive-node-row:hover { background: rgba(164,240,100,0.08); border-radius: 8px; }
+.student-dark-card .drive-node-chevron { color: #84efb8; }
+.student-dark-card .drive-connect-btn {
+  background: rgba(164,240,100,0.10);
+  border: 1px solid rgba(164,240,100,0.30);
+  border-radius: 10px;
+  color: #b5efcc;
+  padding: 11px 20px;
+  cursor: pointer;
+  font: inherit;
+  transition: background 0.2s;
+}
+.student-dark-card .drive-connect-btn:hover { background: rgba(164,240,100,0.18); }
+.student-dark-card .drive-connect-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.student-dark-card .auth-error { background: rgba(74,31,26,0.80); border-radius: 8px; color: #ffb4a2; font-size: 13px; padding: 10px 12px; }
+
+/* ── Lesson rows inside dark card ── */
+.student-lesson-row {
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid rgba(164,240,100,0.10) !important;
+  color: #dff0e8 !important;
+  transition: background 0.2s, border-color 0.2s;
+}
+.student-lesson-row:hover {
+  background: rgba(164,240,100,0.08) !important;
+  border-color: rgba(164,240,100,0.30) !important;
+}
+.student-dark-card .curriculum-term-title { color: #84efb8; }
+.student-dark-card .curriculum-unit-title { color: #7ab89a; }
+.student-dark-card .curriculum-lesson > .session-detail-panel {
+  background: rgba(10,28,18,0.80);
+  border: 1px solid rgba(164,240,100,0.14);
+  border-radius: 14px;
+}
+.student-dark-card .empty-state { color: #5a8a72; }
+
+/* ── Form fields inside dark card ── */
+.student-dark-card .field span { color: #7ab89a; }
+.student-dark-card .field input,
+.student-dark-card .field select {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(164,240,100,0.18);
+  border-radius: 10px;
+  color: #dff0e8;
+}
+.student-dark-card .field input:focus,
+.student-dark-card .field select:focus {
+  border-color: #d4ef58;
+  outline: none;
+}
+.student-dark-card .form-feedback { color: #84efb8; }
+
+@media (max-width: 900px) {
+  .student-dashboard-grid { grid-template-columns: 1fr; }
+  .student-progress-inner { flex-direction: column; align-items: flex-start; }
+  .student-stat-grid { grid-template-columns: repeat(2, 1fr); }
+  .student-dark-header { flex-direction: column; align-items: flex-start; gap: 14px; }
+}
 

@@ -19,3 +19,17 @@ functions/.env
 
 functions/node_modules/
 functions/lib/
+
+# Large archive/backup files — exceed GitHub 100 MB limit
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Stray image/binary dumps at project root
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.mp4
+*.mov

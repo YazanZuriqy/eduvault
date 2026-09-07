@@ -153,10 +153,12 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
 
   const mathContainerRef = useRef<HTMLDivElement | null>(null);
   const mathFieldRef = useRef<MathfieldElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const insertionIndexRef = useRef<number | null>(null);
   const rowRef = useRef<HTMLDivElement | null>(null);
 
-  // MathLive تقرأ document عند الاستيراد، لذا تُستورد ديناميكيًا داخل المتصفح فقط عند فتح اللوحة
-  // كي لا يكسر تصدير Next.js الثابت، ولإبقاء عدد الحقول النشطة في آنٍ واحد صغيرًا.
+  // لوحة MathLive مساحة تأليف معزولة تبدأ فارغة دومًا — لا تُحمَّل بقيمة الحقل الكاملة ولا تكتبها
+  // حرفيًا بحرف، فلا يتحول النص العربي المحيط إلى معادلة LaTeX ويفقد تشكيله وتباعده الطبيعي.
   useEffect(() => {
     if (!isMathOpen) return;
     let isCancelled = false;
@@ -170,9 +172,6 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
       field.style.width = "100%";
       field.style.direction = "ltr";
       field.style.minHeight = "48px";
-      field.value = value;
-
-      field.addEventListener("input", () => onChange(field.value));
 
       mathContainerRef.current.innerHTML = "";
       mathContainerRef.current.appendChild(field);
@@ -187,7 +186,6 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
       mathFieldRef.current?.remove();
       mathFieldRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMathOpen]);
 
   // إغلاق لوحة الرموز عند النقر خارج هذا الصندوق تحديدًا (لا يؤثر على الصناديق الأخرى المفتوحة).
@@ -209,6 +207,21 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
     const latex = tool.generate ? tool.generate() : tool.latex;
     if (!latex) return;
     mathFieldRef.current?.insert(latex, { focus: true });
+  };
+
+  // يُدرج معادلة المسوّدة كمقطع $...$ عند مؤشر النص المحفوظ لحظة فتح اللوحة (أو في النهاية إن لم
+  // يُحفظ)، بدل استبدال النص العربي المحيط كاملاً — هذا ما يصون تشكيل الحروف العربية وتباعد الكلمات.
+  const handleInsertLatexSnippet = () => {
+    const latex = mathFieldRef.current?.value.trim();
+    if (!latex) return;
+
+    const index = insertionIndexRef.current ?? value.length;
+    const snippet = `$${latex}$`;
+    const nextValue = `${value.slice(0, index)}${snippet}${value.slice(index)}`;
+    onChange(nextValue);
+    insertionIndexRef.current = index + snippet.length;
+
+    mathFieldRef.current!.value = "";
   };
 
   const handleMediaFromUploader = async (url: string, kind: QuizMedia["kind"]) => {
@@ -251,12 +264,22 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
       <span className="math-inline-label">{label}</span>
 
       <div className="math-inline-row">
-        <input
+                <input
+          ref={inputRef}
           type="text"
-          className="math-inline-input"
+          className="math-inline-input arabic-text-field"
           value={value}
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
+          dir="rtl"
+          lang="ar"
+          style={{
+            direction: "rtl",
+            textAlign: "right",
+            whiteSpace: "pre-wrap",
+            wordSpacing: "0.1rem",
+            unicodeBidi: "plaintext",
+          }}
         />
         <div className="math-inline-actions">
           <button
@@ -265,6 +288,7 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
             title="لوحة الرموز الرياضية"
             aria-label="لوحة الرموز الرياضية"
             onClick={() => {
+              insertionIndexRef.current = inputRef.current?.selectionStart ?? value.length;
               setIsMediaOpen(false);
               setIsMathOpen((previous) => !previous);
             }}
@@ -321,9 +345,15 @@ const MathInlineField = ({ label, value, onChange, media, onAddMedia, onRemoveMe
             ))}
           </div>
           <div className="math-field-shell" ref={mathContainerRef} />
-          <button type="button" className="logout-button" onClick={() => window.mathVirtualKeyboard?.hide()}>
-            إخفاء لوحة المفاتيح
-          </button>
+          <div className="inline-editor-actions">
+            <button type="button" className="primary-button" onClick={handleInsertLatexSnippet}>
+              إدراج في النص
+            </button>
+            <button type="button" className="logout-button" onClick={() => window.mathVirtualKeyboard?.hide()}>
+              إخفاء لوحة المفاتيح
+            </button>
+          </div>
+          <p className="quiz-hint">اكتب المعادلة هنا فقط، ثم اضغط «إدراج في النص» لإضافتها عند موضع المؤشر بلا المساس ببقية النص العربي.</p>
         </div>
       )}
 

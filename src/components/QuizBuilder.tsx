@@ -283,9 +283,17 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         </button>
       </div>
 
-      <label className="field">
+            <label className="field">
         <span>{quizType === "comprehensive" ? "اسم الاختبار الشامل" : "اسم الاختبار اليومي"}</span>
-        <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="مثال: اختبار الدوال" />
+        <input
+          value={title}
+          onChange={(event) => setTitle(event.target.value)}
+          placeholder="مثال: اختبار الدوال"
+          dir="rtl"
+          lang="ar"
+          className="arabic-text-field"
+          style={{ direction: "rtl", textAlign: "right", whiteSpace: "pre-wrap", wordSpacing: "0.1rem" }}
+        />
       </label>
 
       <div className="curriculum-grid">
@@ -302,13 +310,29 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
             <input value={term} onChange={(event) => setTerm(event.target.value)} />
           </label>
         )}
-        <label className="field">
+                <label className="field">
           <span>الوحدة</span>
-          <input value={unit} onChange={(event) => setUnit(event.target.value)} placeholder="الوحدة الأولى" />
+          <input
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+            placeholder="الوحدة الأولى"
+            dir="rtl"
+            lang="ar"
+            className="arabic-text-field"
+            style={{ direction: "rtl", textAlign: "right", whiteSpace: "pre-wrap", wordSpacing: "0.1rem" }}
+          />
         </label>
         <label className="field">
           <span>الدرس</span>
-          <input value={lesson} onChange={(event) => setLesson(event.target.value)} placeholder="اسم الدرس" />
+          <input
+            value={lesson}
+            onChange={(event) => setLesson(event.target.value)}
+            placeholder="اسم الدرس"
+            dir="rtl"
+            lang="ar"
+            className="arabic-text-field"
+            style={{ direction: "rtl", textAlign: "right", whiteSpace: "pre-wrap", wordSpacing: "0.1rem" }}
+          />
         </label>
       </div>
 
