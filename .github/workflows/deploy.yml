@@ -26,7 +26,7 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
-      - name: Build static site
+            - name: Build static site
         run: npm run build
         env:
           NEXT_PUBLIC_FIREBASE_API_KEY: ${{ secrets.NEXT_PUBLIC_FIREBASE_API_KEY }}
@@ -36,6 +36,10 @@ jobs:
           NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID }}
           NEXT_PUBLIC_FIREBASE_APP_ID: ${{ secrets.NEXT_PUBLIC_FIREBASE_APP_ID }}
           NEXT_PUBLIC_GOOGLE_CLIENT_ID: ${{ secrets.NEXT_PUBLIC_GOOGLE_CLIENT_ID }}
+      # Guarantee GitHub Pages doesn't strip _next/ static chunks (Jekyll ignores _ dirs by default).
+      # The file in public/.nojekyll is copied by Next.js build, but we touch it again defensively.
+      - name: Ensure .nojekyll in output
+        run: touch out/.nojekyll
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

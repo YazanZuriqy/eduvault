@@ -16,9 +16,51 @@ interface Piece {
   maxClosed: boolean;
 }
 
-const CANVAS_SIZE = 440;
-const PADDING = 24;
+const CANVAS_SIZE = 480;
+const PADDING = 36;          // wider padding so axis labels never clip
 const PIECE_COLORS = ["#fa765d", "#78c8d1", "#8ea2ff", "#d4ef58", "#c084fc", "#f472b6"];
+
+// ─── Grid tick helpers ────────────────────────────────────────────────────────
+
+/**
+ * Returns the single-unit integer step that produces between MIN_TICKS and
+ * MAX_TICKS grid lines for a given axis range.  Steps are ALWAYS whole
+ * integers ≥ 1 — multi-unit compression (2,4,6,8 style) is never used.
+ *
+ * Algorithm:
+ *   1. Start at step = 1.
+ *   2. While the resulting tick count exceeds MAX_TICKS, increment step by 1.
+ *   3. Cap at a maximum step of 10 so the grid never goes completely blank.
+ */
+const MIN_TICKS = 4;
+const MAX_TICKS = 20;
+
+const computeTickStep = (min: number, max: number): number => {
+  const span = max - min;
+  let step = 1;
+  while (Math.floor(span / step) > MAX_TICKS && step < 10) {
+    step += 1;
+  }
+  // Ensure we always have at least MIN_TICKS lines
+  while (Math.floor(span / step) < MIN_TICKS && step > 1) {
+    step -= 1;
+  }
+  return step;
+};
+
+/**
+ * Generates every integer tick value in [min, max] that is a multiple of step.
+ * e.g. computeTicks(-10, 10, 1) → [-10,-9,-8,…,10]
+ *      computeTicks(-5,  5, 2) → [-4,-2,0,2,4]
+ */
+const computeTicks = (min: number, max: number, step: number): number[] => {
+  const ticks: number[] = [];
+  const start = Math.ceil(min / step) * step;
+  for (let v = start; v <= max + 1e-9; v += step) {
+    ticks.push(Math.round(v * 1e9) / 1e9); // eliminate floating-point drift
+  }
+  return ticks;
+};
 
 const createPiece = (): Piece => ({
   key: crypto.randomUUID(),
@@ -396,7 +438,7 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
   };
 
 
-  const handleGenerate = () => {
+    const handleGenerate = () => {
     setError(null);
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -408,60 +450,206 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
     const parsedYMin = Number(yMin);
     const parsedYMax = Number(yMax);
 
-    if ([parsedXMin, parsedXMax, parsedYMin, parsedYMax].some((value) => Number.isNaN(value)) || parsedXMin >= parsedXMax || parsedYMin >= parsedYMax) {
+    if (
+      [parsedXMin, parsedXMax, parsedYMin, parsedYMax].some((v) => Number.isNaN(v)) ||
+      parsedXMin >= parsedXMax ||
+      parsedYMin >= parsedYMax
+    ) {
       setError("يرجى إدخال حدود صحيحة للمحاور (الحد الأدنى أقل من الأعلى).");
       return;
     }
 
+    // ── Canvas reset ──
     context.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+    // Crisp white background
     context.fillStyle = "#ffffff";
     context.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
 
-    // خطوط الشبكة والمحاور
-    context.strokeStyle = "#e2e8dc";
-    context.lineWidth = 1;
-    const gridStepX = (parsedXMax - parsedXMin) / 10;
-    const gridStepY = (parsedYMax - parsedYMin) / 10;
-    const zeroAxisX = toPixel(0, parsedXMin, parsedXMax, CANVAS_SIZE);
-    const zeroAxisY = toPixel(0, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+    // Plot area boundaries in pixel space
+    const plotLeft   = PADDING;
+    const plotRight  = CANVAS_SIZE - PADDING;
+    const plotTop    = PADDING;
+    const plotBottom = CANVAS_SIZE - PADDING;
 
+    // ── Compute single-unit integer tick steps ──
+    const xStep   = computeTickStep(parsedXMin, parsedXMax);
+    const yStep   = computeTickStep(parsedYMin, parsedYMax);
+    const xTicks  = computeTicks(parsedXMin, parsedXMax, xStep);
+    const yTicks  = computeTicks(parsedYMin, parsedYMax, yStep);
+
+    // Pixel positions of the origin axes (clamped to plot area if 0 is out of range)
+    const zeroPixelX = toPixel(0, parsedXMin, parsedXMax, CANVAS_SIZE);
+    const zeroPixelY = toPixel(0, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+    const hasXAxis   = parsedYMin <= 0 && parsedYMax >= 0;
+    const hasYAxis   = parsedXMin <= 0 && parsedXMax >= 0;
+
+    // Label anchor: use axis if visible, otherwise use the plot edge
+    const labelBaseY = hasXAxis ? zeroPixelY : plotBottom;
+    const labelBaseX = hasYAxis ? zeroPixelX : plotLeft;
+
+    // ── 1. Subtle background grid squares (à la graph paper) ──
+    // One very light fill rect per cell to visually anchor each coordinate block.
+    context.save();
+    context.fillStyle = "rgba(226, 232, 220, 0.18)"; // slate-200/18
+    for (let xi = 0; xi < xTicks.length - 1; xi += 1) {
+      for (let yi = 0; yi < yTicks.length - 1; yi += 1) {
+        // Alternate cells for a subtle graph-paper checker
+        if ((xi + yi) % 2 === 0) {
+          const cx0 = toPixel(xTicks[xi],     parsedXMin, parsedXMax, CANVAS_SIZE);
+          const cx1 = toPixel(xTicks[xi + 1], parsedXMin, parsedXMax, CANVAS_SIZE);
+          const cy0 = toPixel(yTicks[yi + 1], parsedYMin, parsedYMax, CANVAS_SIZE, true);
+          const cy1 = toPixel(yTicks[yi],     parsedYMin, parsedYMax, CANVAS_SIZE, true);
+          context.fillRect(cx0, cy0, cx1 - cx0, cy1 - cy0);
+        }
+      }
+    }
+    context.restore();
+
+    // ── 2. Vertical grid lines (one per integer x tick) ──
+    context.save();
+    context.strokeStyle = "rgba(203, 213, 202, 0.55)"; // slate-300/55
+    context.lineWidth = 0.8;
+    context.setLineDash([3, 3]);
+    for (const xv of xTicks) {
+      const px = toPixel(xv, parsedXMin, parsedXMax, CANVAS_SIZE);
+      context.beginPath();
+      context.moveTo(px, plotTop);
+      context.lineTo(px, plotBottom);
+      context.stroke();
+    }
+    context.restore();
+
+    // ── 3. Horizontal grid lines (one per integer y tick) ──
+    context.save();
+    context.strokeStyle = "rgba(203, 213, 202, 0.55)";
+    context.lineWidth = 0.8;
+    context.setLineDash([3, 3]);
+    for (const yv of yTicks) {
+      const py = toPixel(yv, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+      context.beginPath();
+      context.moveTo(plotLeft, py);
+      context.lineTo(plotRight, py);
+      context.stroke();
+    }
+    context.restore();
+
+    // ── 4. Crosshair dots at every grid intersection ──
+    context.save();
+    context.fillStyle = "rgba(134, 160, 146, 0.35)"; // muted sage dot
+    for (const xv of xTicks) {
+      for (const yv of yTicks) {
+        const px = toPixel(xv, parsedXMin, parsedXMax, CANVAS_SIZE);
+        const py = toPixel(yv, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+        context.beginPath();
+        context.arc(px, py, 1.4, 0, Math.PI * 2);
+        context.fill();
+      }
+    }
+    context.restore();
+
+    // ── 5. X-axis tick labels ──
+    context.save();
     context.fillStyle = "#557069";
-    context.font = "10px sans-serif";
-
-    for (let i = 0; i <= 10; i += 1) {
-      const xValue = parsedXMin + i * gridStepX;
-      const pixelX = toPixel(xValue, parsedXMin, parsedXMax, CANVAS_SIZE);
+    context.font = "bold 10px \"Space Grotesk\", ui-monospace, monospace";
+    context.textAlign = "center";
+    context.textBaseline = "top";
+    for (const xv of xTicks) {
+      if (xv === 0) continue; // origin labelled with Y-axis
+      const px = toPixel(xv, parsedXMin, parsedXMax, CANVAS_SIZE);
+      // Tick mark
+      context.strokeStyle = "#8ea29a";
+      context.lineWidth = 1;
       context.beginPath();
-      context.moveTo(pixelX, PADDING);
-      context.lineTo(pixelX, CANVAS_SIZE - PADDING);
+      context.moveTo(px, labelBaseY - 3);
+      context.lineTo(px, labelBaseY + 3);
       context.stroke();
-      if (parsedYMin <= 0 && parsedYMax >= 0) context.fillText(xValue.toFixed(1), pixelX - 8, zeroAxisY - 5);
+      // Label (integers render without decimal point)
+      const label = Number.isInteger(xv) ? String(xv) : xv.toFixed(1);
+      context.fillText(label, px, labelBaseY + 5);
+    }
+    context.restore();
 
-      const yValue = parsedYMin + i * gridStepY;
-      const pixelY = toPixel(yValue, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+    // ── 6. Y-axis tick labels ──
+    context.save();
+    context.fillStyle = "#557069";
+    context.font = "bold 10px \"Space Grotesk\", ui-monospace, monospace";
+    context.textAlign = "right";
+    context.textBaseline = "middle";
+    for (const yv of yTicks) {
+      if (yv === 0) continue;
+      const py = toPixel(yv, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+      // Tick mark
+      context.strokeStyle = "#8ea29a";
+      context.lineWidth = 1;
       context.beginPath();
-      context.moveTo(PADDING, pixelY);
-      context.lineTo(CANVAS_SIZE - PADDING, pixelY);
+      context.moveTo(labelBaseX - 3, py);
+      context.lineTo(labelBaseX + 3, py);
       context.stroke();
-      if (parsedXMin <= 0 && parsedXMax >= 0) context.fillText(yValue.toFixed(1), zeroAxisX + 5, pixelY + 3);
+      const label = Number.isInteger(yv) ? String(yv) : yv.toFixed(1);
+      context.fillText(label, labelBaseX - 5, py);
+    }
+    context.restore();
+
+    // Origin label
+    if (hasXAxis && hasYAxis) {
+      context.save();
+      context.fillStyle = "#557069";
+      context.font = "bold 10px \"Space Grotesk\", ui-monospace, monospace";
+      context.textAlign = "right";
+      context.textBaseline = "top";
+      context.fillText("0", zeroPixelX - 4, zeroPixelY + 4);
+      context.restore();
     }
 
+    // ── 7. Principal axes (bold solid lines) ──
+    context.save();
     context.strokeStyle = "#10231f";
-    context.lineWidth = 1.5;
-    if (parsedXMin <= 0 && parsedXMax >= 0) {
-      const pixelX = toPixel(0, parsedXMin, parsedXMax, CANVAS_SIZE);
+    context.lineWidth = 1.8;
+    context.setLineDash([]);
+
+    // Y-axis (vertical)
+    if (hasYAxis) {
       context.beginPath();
-      context.moveTo(pixelX, PADDING);
-      context.lineTo(pixelX, CANVAS_SIZE - PADDING);
+      context.moveTo(zeroPixelX, plotTop);
+      context.lineTo(zeroPixelX, plotBottom);
+      context.stroke();
+      // Arrow tip
+      context.beginPath();
+      context.moveTo(zeroPixelX - 4, plotTop + 8);
+      context.lineTo(zeroPixelX,     plotTop);
+      context.lineTo(zeroPixelX + 4, plotTop + 8);
       context.stroke();
     }
-    if (parsedYMin <= 0 && parsedYMax >= 0) {
-      const pixelY = toPixel(0, parsedYMin, parsedYMax, CANVAS_SIZE, true);
+
+    // X-axis (horizontal)
+    if (hasXAxis) {
       context.beginPath();
-      context.moveTo(PADDING, pixelY);
-      context.lineTo(CANVAS_SIZE - PADDING, pixelY);
+      context.moveTo(plotLeft, zeroPixelY);
+      context.lineTo(plotRight, zeroPixelY);
+      context.stroke();
+      // Arrow tip
+      context.beginPath();
+      context.moveTo(plotRight - 8, zeroPixelY - 4);
+      context.lineTo(plotRight,     zeroPixelY);
+      context.lineTo(plotRight - 8, zeroPixelY + 4);
       context.stroke();
     }
+
+    // Axis labels (x, y)
+    context.fillStyle = "#10231f";
+    context.font = "italic bold 12px serif";
+    if (hasXAxis) {
+      context.textAlign = "left";
+      context.textBaseline = "middle";
+      context.fillText("x", plotRight + 4, zeroPixelY);
+    }
+    if (hasYAxis) {
+      context.textAlign = "center";
+      context.textBaseline = "alphabetic";
+      context.fillText("y", zeroPixelX, plotTop - 4);
+    }
+    context.restore();
 
     try {
       pieces.forEach((piece, pieceIndex) => {
@@ -659,7 +847,13 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
 
       {error && <p className="auth-error">{error}</p>}
 
-      <canvas ref={canvasRef} width={CANVAS_SIZE} height={CANVAS_SIZE} className="graph-canvas" />
+      <canvas
+        ref={canvasRef}
+        width={CANVAS_SIZE}
+        height={CANVAS_SIZE}
+        className="graph-canvas"
+        aria-label="لوحة الرسم البياني"
+      />
 
       <button type="button" className="primary-button" onClick={handleGenerate}>
         رسم وإدراج الرسم البياني
