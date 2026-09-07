@@ -197,16 +197,74 @@ const TeacherDashboardPage = () => {
           </div>
         </article>
 
-        {workspace === "overview" && <>
-        <article className="panel dashboard-summary">
-          <strong>{students.length}</strong><span>طالب نشط</span>
-          <button type="button" className="logout-button" onClick={() => setWorkspace("students")}>إدارة الطلاب</button>
-        </article>
-        <article className="panel dashboard-summary">
-          <strong>{sessions.length}</strong><span>جلسة مرتبطة</span>
-          <button type="button" className="logout-button" onClick={() => setWorkspace("sessions")}>إدارة الجلسات</button>
-        </article>
-        </>}
+                {workspace === "overview" && (() => {
+          const passedCount   = sessions.filter((s) => s.quizPassed).length;
+          const watchedCount  = sessions.filter((s) => s.watchedAt).length;
+          // آخر 5 أحداث: جلسات جديدة واختبارات مجتازة بحسب createdAt/watchedAt
+          const recentActivity = [
+            ...sessions
+              .filter((s) => Date.now() - s.createdAt < 7 * 24 * 60 * 60 * 1000)
+              .map((s) => ({ kind: "new" as const, label: `جلسة جديدة: ${s.videoTitle}`, ts: s.createdAt })),
+            ...sessions
+              .filter((s) => s.watchedAt && Date.now() - (s.watchedAt) < 7 * 24 * 60 * 60 * 1000)
+              .map((s) => ({ kind: "watch" as const, label: `شوهد: ${s.videoTitle}`, ts: s.watchedAt! })),
+            ...sessions
+              .filter((s) => s.quizPassed)
+              .slice(-5)
+              .map((s) => ({ kind: "pass" as const, label: `اجتاز اختبار: ${s.videoTitle}`, ts: s.createdAt })),
+          ]
+            .sort((a, b) => b.ts - a.ts)
+            .slice(0, 7);
+
+          return (
+            <>
+              <article className="panel panel-wide">
+                <p className="dashboard-eyebrow">OVERVIEW · اللحظة</p>
+                <h2 style={{ marginBottom: 18 }}>نظرة عامة</h2>
+                <div className="teacher-stats-row">
+                  <div className="teacher-stat-card">
+                    <strong>{students.length}</strong>
+                    <span>طالب نشط</span>
+                  </div>
+                  <div className="teacher-stat-card">
+                    <strong>{sessions.length}</strong>
+                    <span>جلسة مرتبطة</span>
+                  </div>
+                  <div className="teacher-stat-card">
+                    <strong>{watchedCount}</strong>
+                    <span>جلسة شوهدت</span>
+                  </div>
+                  <div className="teacher-stat-card">
+                    <strong>{passedCount}</strong>
+                    <span>اختبار مجتاز</span>
+                  </div>
+                </div>
+                <div className="teacher-quick-actions" style={{ marginTop: 18 }}>
+                  <button type="button" className="primary-button" onClick={() => setWorkspace("students")}>إدارة الطلاب</button>
+                  <button type="button" className="logout-button" onClick={() => setWorkspace("sessions")}>إدارة الجلسات</button>
+                  <button type="button" className="logout-button" onClick={() => setWorkspace("quiz")}>بناء اختبار</button>
+                </div>
+              </article>
+
+              {recentActivity.length > 0 && (
+                <article className="panel panel-wide">
+                  <h2>آخر الأحداث (آخر 7 أيام)</h2>
+                  <div className="teacher-activity-feed">
+                    {recentActivity.map((item, i) => (
+                      <div key={i} className="teacher-activity-item">
+                        <span
+                          className={`teacher-activity-dot teacher-activity-dot--${item.kind}`}
+                          aria-hidden="true"
+                        />
+                        <span>{item.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              )}
+            </>
+          );
+        })()}
 
         {workspace === "sessions" && <>
         <article className="panel">

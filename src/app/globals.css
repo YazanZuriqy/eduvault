@@ -628,3 +628,168 @@ body {
   .student-dark-header { flex-direction: column; align-items: flex-start; gap: 14px; }
 }
 
+/* Student profile actions row (teacher dashboard) */
+.student-profile-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 4px; }
+
+/* Teacher dashboard overview stats */
+.teacher-stats-row { display: grid; gap: 16px; grid-template-columns: repeat(4, 1fr); margin-bottom: 4px; }
+.teacher-stat-card { background: linear-gradient(135deg, #ffffff, #edf5e6); border: 1px solid #d8e0d3; border-radius: 14px; display: flex; flex-direction: column; gap: 6px; padding: 20px 18px; }
+.teacher-stat-card strong { color: var(--coral); font: 700 34px/1 var(--font-space-grotesk), sans-serif; }
+.teacher-stat-card span { color: #557069; font-size: 13px; }
+.teacher-activity-feed { display: flex; flex-direction: column; gap: 8px; max-height: 260px; overflow-y: auto; }
+.teacher-activity-item { background: var(--paper); border-radius: 8px; display: flex; gap: 12px; align-items: center; padding: 10px 14px; font-size: 13px; }
+.teacher-activity-dot { border-radius: 50%; flex-shrink: 0; height: 8px; width: 8px; }
+.teacher-activity-dot--pass { background: var(--lime); }
+.teacher-activity-dot--watch { background: var(--sky); }
+.teacher-activity-dot--new { background: var(--coral); }
+.teacher-quick-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+@media (max-width: 800px) { .teacher-stats-row { grid-template-columns: repeat(2, 1fr); } }
+
+/* =========================================================================
+   PARENTS PORTAL — Phase 25
+   ========================================================================= */
+.parent-shell {
+  background: radial-gradient(ellipse 110% 55% at 50% -5%, #0c1f2e 0%, #050c14 55%, #020608 100%);
+  min-height: 100vh;
+  padding: clamp(20px, 5vw, 52px);
+  position: relative;
+  overflow: hidden;
+  color: #d6eaf8;
+  font-family: var(--font-cairo), sans-serif;
+}
+.parent-glow {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(36rem 24rem at 8% 12%, #4fc3f722, transparent 60%),
+    radial-gradient(28rem 20rem at 92% 80%, #29b6f61a, transparent 60%),
+    radial-gradient(20rem 16rem at 50% 50%, #0288d11a, transparent 65%);
+  z-index: 0;
+  animation: bg-float 30s ease-in-out infinite alternate;
+}
+.parent-header {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid rgba(79,195,247,0.14);
+  margin-bottom: 28px; padding-bottom: 18px;
+}
+.parent-eyebrow { color: #4fc3f7; font: 11px var(--font-space-grotesk), sans-serif; letter-spacing: .18em; margin: 0 0 5px; text-transform: uppercase; }
+.parent-heading { font-size: clamp(22px, 3vw, 30px); margin: 0; color: #e1f5fe; }
+.parent-back-btn { background: transparent; border: 1px solid rgba(79,195,247,0.3); border-radius: 10px; color: #81d4fa; cursor: pointer; font: inherit; font-size: 13px; padding: 10px 18px; transition: background .2s; }
+.parent-back-btn:hover { background: rgba(79,195,247,0.08); }
+
+/* Lookup card */
+.parent-lookup-card {
+  position: relative; z-index: 2;
+  background: rgba(10, 28, 46, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(79,195,247,0.15);
+  border-radius: 18px;
+  padding: 22px 24px;
+  max-width: 560px;
+  margin-bottom: 28px;
+}
+.parent-hint { color: #81d4fa; font-size: 13px; margin: 0 0 14px; }
+.parent-lookup-form { display: flex; gap: 10px; flex-wrap: wrap; }
+.parent-lookup-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(79,195,247,0.22);
+  border-radius: 10px;
+  color: #e1f5fe;
+  flex: 1;
+  font: inherit;
+  min-width: 220px;
+  padding: 12px 14px;
+}
+.parent-lookup-input:focus { border-color: #4fc3f7; outline: none; }
+.parent-lookup-btn { background: #4fc3f7; border: 0; border-radius: 10px; color: #05131f; cursor: pointer; font: 700 14px/1 inherit; padding: 12px 22px; transition: opacity .15s; white-space: nowrap; }
+.parent-lookup-btn:disabled { opacity: .6; cursor: not-allowed; }
+.parent-error { background: rgba(74,31,26,.75); border-radius: 8px; color: #ffb4a2; font-size: 13px; margin: 12px 0 0; padding: 10px 14px; }
+
+/* Report section */
+.parent-report { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 22px; }
+
+/* Student strip */
+.parent-student-strip {
+  background: rgba(10, 28, 46, 0.60);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(79,195,247,0.15);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 18px 22px;
+  flex-wrap: wrap;
+}
+.parent-student-avatar {
+  background: linear-gradient(135deg, #0288d1, #4fc3f7);
+  border-radius: 50%;
+  color: #fff;
+  flex-shrink: 0;
+  font: 700 22px/1 var(--font-space-grotesk), sans-serif;
+  height: 54px;
+  width: 54px;
+  display: grid;
+  place-items: center;
+}
+.parent-student-name { font-size: 19px; font-weight: 700; margin: 0 0 4px; color: #e1f5fe; }
+.parent-student-meta { color: #81d4fa; font-size: 13px; margin: 0; }
+.parent-premium-badge { background: linear-gradient(90deg, #d4ef58, #a8d518); border-radius: 999px; color: #10231f; font: 700 12px var(--font-space-grotesk), sans-serif; margin-right: auto; padding: 5px 14px; white-space: nowrap; }
+
+/* KPI row */
+.parent-kpi-row { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.parent-ring-wrap { position: relative; flex-shrink: 0; width: 120px; height: 120px; }
+.parent-ring-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.parent-ring-pct { font: 700 24px/1 var(--font-space-grotesk), sans-serif; color: #d4ef58; text-shadow: 0 0 10px rgba(212,239,88,.45); }
+.parent-ring-sub { font-size: 10px; color: #4fc3f7; margin-top: 3px; letter-spacing: .1em; }
+.parent-kpi-grid { display: grid; gap: 12px; grid-template-columns: repeat(4, 1fr); flex: 1; min-width: 280px; }
+.parent-kpi-cell {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(79,195,247,0.12);
+  border-radius: 12px;
+  display: flex; flex-direction: column;
+  padding: 14px 12px; gap: 5px;
+}
+.parent-kpi-cell strong { font: 700 22px/1 var(--font-space-grotesk), sans-serif; color: #e1f5fe; }
+.parent-kpi-cell span { font-size: 11px; color: #81d4fa; }
+.parent-kpi-cell--accent strong { color: #d4ef58; text-shadow: 0 0 8px rgba(212,239,88,.35); }
+
+/* Sessions table */
+.parent-sessions-wrap {
+  background: rgba(10, 28, 46, 0.55);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(79,195,247,0.12);
+  border-radius: 16px;
+  padding: 20px;
+  overflow-x: auto;
+}
+.parent-section-title { color: #81d4fa; font-size: 15px; font-weight: 700; margin: 0 0 14px; }
+.parent-table { border-collapse: collapse; min-width: 600px; width: 100%; font-size: 13px; }
+.parent-table th { border-bottom: 1px solid rgba(79,195,247,0.18); color: #4fc3f7; font: 600 11px var(--font-space-grotesk), sans-serif; letter-spacing: .1em; padding: 8px 10px; text-align: right; text-transform: uppercase; white-space: nowrap; }
+.parent-table td { border-bottom: 1px solid rgba(255,255,255,0.05); color: #d6eaf8; padding: 10px; vertical-align: middle; }
+.parent-table tr:last-child td { border-bottom: 0; }
+.parent-table tr:hover td { background: rgba(79,195,247,0.04); }
+.parent-td-num { color: #4fc3f7; font-variant-numeric: tabular-nums; width: 36px; }
+.parent-td-title { font-weight: 600; }
+.parent-td-meta { color: #81d4fa; }
+.parent-td-date { color: #81d4fa; font-size: 12px; white-space: nowrap; }
+
+/* Badges */
+.parent-badge { border-radius: 999px; display: inline-block; font-size: 11px; font-weight: 700; padding: 3px 10px; white-space: nowrap; }
+.parent-badge--pass    { background: #d4ef58; color: #10231f; }
+.parent-badge--fail    { background: rgba(74,31,26,.7); color: #ffb4a2; }
+.parent-badge--watched { background: rgba(79,195,247,.2); color: #4fc3f7; border: 1px solid rgba(79,195,247,.3); }
+.parent-badge--pending { background: rgba(255,255,255,.06); color: #81d4fa; border: 1px solid rgba(79,195,247,.15); }
+
+.parent-empty { color: #4fc3f7; font-size: 13px; margin: 0; }
+.parent-disclaimer { color: rgba(79,195,247,0.45); font-size: 11px; margin: 0; text-align: center; }
+
+@media (max-width: 700px) {
+  .parent-kpi-grid { grid-template-columns: repeat(2,1fr); }
+  .parent-kpi-row { flex-direction: column; align-items: flex-start; }
+}
+

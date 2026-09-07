@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FirebaseError } from "firebase/app";
 import {
   completeStudentActivation,
@@ -340,6 +341,16 @@ const AuthPage = () => {
           </form>
         )}
       </div>
+
+      {/* Parents Portal link */}
+      <p style={{ textAlign: "center", marginTop: 16 }}>
+        <Link
+          href="/parent"
+          style={{ color: "#78c8d1", fontSize: 13, textDecoration: "underline" }}
+        >
+          بوابة ولي الأمر — متابعة تقدم الطالب
+        </Link>
+      </p>
 
       {isResetOpen && (
         <div className="quiz-modal-backdrop" role="dialog" aria-modal="true">
