@@ -174,10 +174,10 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
     setFeedback(null);
 
     if (status === "published") {
-      if (selectedStudentIds.length === 0) {
-        setFeedback("حدّد طالبًا واحدًا على الأقل لتكليفهم بالاختبار.");
-        return;
-      }
+      //if (selectedStudentIds.length === 0) {
+        //setFeedback("حدّد طالبًا واحدًا على الأقل لتكليفهم بالاختبار.");
+        //return;
+      //}
 
       if (selectedStudentIds.some((studentId) => !studentSessionMap[studentId])) {
         setFeedback("يرجى اختيار جلسة كل طالب محدد قبل النشر.");
@@ -210,7 +210,7 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         }
         return url;
       };
-      const sessionIds = selectedStudentIds.map((studentId) => studentSessionMap[studentId]).filter(Boolean);
+      const sessionIds = selectedStudentIds.map((studentId) => studentSessionMap[studentId] || "").filter(Boolean);
       const quiz: Omit<QuizDoc, "quizId"> = {
         sessionIds,
         title: title.trim() || undefined,
