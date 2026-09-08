@@ -33,7 +33,7 @@ const PIECE_COLORS = ["#fa765d", "#78c8d1", "#8ea2ff", "#d4ef58", "#c084fc", "#f
  *   3. Cap at a maximum step of 10 so the grid never goes completely blank.
  */
 const MIN_TICKS = 4;
-const MAX_TICKS = 20;
+const MAX_TICKS = 40;
 
 const computeTickStep = (min: number, max: number): number => {
   const span = max - min;
@@ -458,16 +458,8 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
       setError("يرجى إدخال حدود صحيحة للمحاور (الحد الأدنى أقل من الأعلى).");
       return;
     }
-    if (
-      [parsedXMin, parsedXMax, parsedYMin, parsedYMax].some((v) => Number.isNaN(v)) ||
-      parsedXMin >= parsedXMax ||
-      parsedYMin >= parsedYMax
-    ) {
-      setError("يرجى إدخال حدود صحيحة للمحاور (الحد الأدنى أقل من الأعلى).");
-      return;
-    }
 
-     // ── Canvas reset ──
+    // ── Canvas reset ──
     context.save();
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, canvas.width, canvas.height);
@@ -662,16 +654,17 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
       context.fillText("y", zeroPixelX, plotTop - 4);
     }
     context.restore();
+
     try {
       pieces.forEach((piece, pieceIndex) => {
         const pieceColor = PIECE_COLORS[pieceIndex % PIECE_COLORS.length];
         context.strokeStyle = pieceColor;
         context.lineWidth = 2.5;
-
-        context.beginPath(); // السطر السحري الصافي بدون نجوم لفصل منحنيات المتشعب
-
+        context.beginPath();
+        
         const domainMin = piece.domainMin.trim() ? Number(piece.domainMin) : parsedXMin;
         const domainMax = piece.domainMax.trim() ? Number(piece.domainMax) : parsedXMax;
+        if (Number.isNaN(domainMin) || Number.isNaN(domainMax) || domainMin >= domainMax) return;
 
         const sampleCount = 400;
         let isDrawing = false;
@@ -714,6 +707,7 @@ const GraphGenerator = ({ onInsert }: GraphGeneratorProps) => {
           context.fillStyle = closed ? pieceColor : "#ffffff";
           context.fill();
           context.stroke();
+        });
       });
     } catch {
       setError("تعذر تفسير أحد التعابير الرياضية. تحقق من الصياغة.");
