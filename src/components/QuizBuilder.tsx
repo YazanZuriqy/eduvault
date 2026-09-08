@@ -201,6 +201,15 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
     setIsSaving(true);
 
     try {
+      const normalizeDriveUrl = (url: string) => {
+        if (url.includes("://google.com") || url.includes("google.com")) {
+          const match = url.match(/\/file\/d\/([^/]+)/) || url.match(/id=([^&]+)/);
+          if (match && match[1]) {
+            return `https://://google.com/thumbnail?id=${match[1]}&sz=w1000`;
+          }
+        }
+        return url;
+      };
       const sessionIds = selectedStudentIds.map((studentId) => studentSessionMap[studentId]).filter(Boolean);
       const quiz: Omit<QuizDoc, "quizId"> = {
         sessionIds,
@@ -218,14 +227,21 @@ const QuizBuilder = ({ sessions, students, assignedStudentId }: QuizBuilderProps
         passThreshold,
         shuffleOptions,
         shuffleQuestions,
-        questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia, points }) => ({
-          question,
-          options,
-          correctAnswer,
-          questionMedia,
-          optionMedia,
-          points,
-        })),
+        questions: questions.map(({ question, options, correctAnswer, questionMedia, optionMedia, points }) => {
+          const cleanQuestionMedia = (questionMedia ?? []).map(m => ({ ...m, url: normalizeDriveUrl(m.url) }));
+          const cleanOptionMedia = { ...(optionMedia ?? {}) };
+          Object.keys(cleanOptionMedia).forEach(key => {
+            cleanOptionMedia[key] = (cleanOptionMedia[key] ?? []).map(m => ({ ...m, url: normalizeDriveUrl(m.url) }));
+          });
+          return {
+            question,
+            options,
+            correctAnswer,
+            questionMedia: cleanQuestionMedia,
+            optionMedia: cleanOptionMedia,
+            points,
+          };
+        }),
       };
 
       if (editingQuizId) {
